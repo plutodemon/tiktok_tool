@@ -183,12 +183,7 @@ func main() {
 
 			devices := make([]pcap.Interface, 0)
 			for _, device := range allDevices {
-				if strings.Contains(device.Description, "Hyper-V") ||
-					strings.Contains(device.Description, "VMware") ||
-					strings.Contains(device.Description, "VirtualBox") ||
-					strings.Contains(device.Description, "Bluetooth") ||
-					strings.Contains(device.Description, "WAN") ||
-					strings.Contains(device.Description, "Tunnel") ||
+				if strings.Contains(device.Description, "Bluetooth") ||
 					strings.Contains(device.Description, "loopback") {
 					continue
 				}
@@ -240,15 +235,6 @@ func main() {
 
 							payload := string(appLayer.Payload())
 
-							if strings.Contains(payload, "rtmp") ||
-								strings.Contains(payload, "stream") ||
-								strings.Contains(payload, "live") ||
-								strings.Contains(payload, "push") {
-								if isDebug {
-									fmt.Printf("发现可能相关的数据包 [%s]: %s\n", deviceName, payload)
-								}
-							}
-
 							if strings.Contains(strings.ToLower(payload), "rtmp://") {
 								if isDebug {
 									fmt.Printf("发现包含 rtmp:// 的数据包: %s\n", payload)
@@ -266,12 +252,6 @@ func main() {
 									status.SetText("已找到推流服务器地址")
 									if isDebug {
 										fmt.Printf("找到服务器地址: %s\n", serverUrl)
-									}
-
-									if strings.Contains(serverUrl, "douyincdn.com") {
-										if isDebug {
-											fmt.Printf("找到抖音CDN地址，停止查找\n")
-										}
 									}
 								}
 							}
