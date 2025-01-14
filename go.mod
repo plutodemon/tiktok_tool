@@ -1,4 +1,4 @@
-module ai_generate
+module tiktok_tool
 
 go 1.22
 
