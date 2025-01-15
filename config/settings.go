@@ -17,7 +17,7 @@ type Settings struct {
 // DefaultSettings 默认配置
 var DefaultSettings = Settings{
 	NetworkInterfaces: []string{},
-	ServerRegex:       `(rtmp://push-rtmp-[^\.]+\.douyincdn\.com/thirdgame)`,
+	ServerRegex:       `(rtmp://push-rtmp-[a-zA-Z0-9\-]+\.douyincdn\.com/thirdgame)`,
 	StreamKeyRegex:    `(stream-\d+\?expire=\d+&sign=[a-f0-9]+(?:&volcSecret=[a-f0-9]+&volcTime=\d+)?)`,
 }
 

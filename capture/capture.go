@@ -62,7 +62,7 @@ func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onE
 
 	for _, device := range devices {
 		if config.IsDebug {
-			fmt.Printf("正在监听网络接口: %s (%s)\n", device.Name, device.Description)
+			fmt.Printf("正在监听网络接口: %s \n", device.Description)
 		}
 		go captureDevice(device.Name, onServerFound, onStreamKeyFound)
 	}
@@ -130,24 +130,21 @@ func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFou
 					}
 				}
 
-				streamPatterns := []string{config.DefaultSettings.StreamKeyRegex}
-				if len(config.CurrentSettings.StreamKeyRegex) > 0 &&
-					config.CurrentSettings.StreamKeyRegex != config.DefaultSettings.StreamKeyRegex {
-					streamPatterns = append(streamPatterns, config.CurrentSettings.StreamKeyRegex)
+				keyRegex := config.DefaultSettings.StreamKeyRegex
+				if len(config.CurrentSettings.StreamKeyRegex) > 0 && config.CurrentSettings.StreamKeyRegex != keyRegex {
+					keyRegex = config.CurrentSettings.StreamKeyRegex
 				}
 
-				for _, pattern := range streamPatterns {
-					streamRegex := regexp.MustCompile(pattern)
-					matches = streamRegex.FindStringSubmatch(payload)
+				streamRegex := regexp.MustCompile(keyRegex)
+				matches = streamRegex.FindStringSubmatch(payload)
 
-					if len(matches) >= 2 {
-						streamKey := matches[1]
-						onStreamKeyFound(streamKey)
-						if config.IsDebug {
-							fmt.Printf("找到推流码: %s\n", streamKey)
-						}
-						break
+				if len(matches) >= 1 {
+					streamKey := matches[1]
+					onStreamKeyFound(streamKey)
+					if config.IsDebug {
+						fmt.Printf("找到推流码: %s\n", streamKey)
 					}
+					break
 				}
 			}
 		}

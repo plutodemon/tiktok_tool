@@ -8,7 +8,7 @@ if not exist "rsrc_windows_386.syso" if not exist "rsrc_windows_amd64.syso" (
 )
 
 echo 正在构建开发版本...
-go build -o ./tools/直播伴侣tool_dev.exe -ldflags "-X 'main.Debug=true'"
+go build -o ./tools/直播伴侣tool_dev.exe -ldflags "-X 'tiktok_tool/config.Debug=true'"
 
 echo 正在构建发布版本...
 go build -o ./tools/直播伴侣tool.exe -ldflags "-s -w -H=windowsgui"

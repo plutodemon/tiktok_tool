@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
@@ -139,6 +140,21 @@ func (w *MainWindow) handleCapture() {
 		w.streamKey.SetText("")
 
 		w.status.SetText("正在抓包...")
+
+		if config.IsDebug {
+			serverRegexCompile := config.CurrentSettings.ServerRegex
+			if len(serverRegexCompile) == 0 {
+				serverRegexCompile = config.DefaultSettings.ServerRegex
+			}
+			fmt.Println("服务器地址正则表达式: ", serverRegexCompile)
+
+			keyRegex := config.DefaultSettings.StreamKeyRegex
+			if len(config.CurrentSettings.StreamKeyRegex) > 0 && config.CurrentSettings.StreamKeyRegex != keyRegex {
+				keyRegex = config.CurrentSettings.StreamKeyRegex
+			}
+			fmt.Println("推流码正则表达式: ", keyRegex)
+		}
+
 		capture.StartCapture(
 			func(server string) {
 				w.serverAddr.SetText(server)

@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+	"os"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -23,7 +25,7 @@ type SettingsWindow struct {
 func ShowSettingsWindow(parent fyne.App) {
 	// 创建设置窗口
 	settingsWindow := parent.NewWindow("设置")
-	settingsWindow.Resize(fyne.NewSize(600, 600))
+	settingsWindow.Resize(fyne.NewSize(600, 500))
 	settingsWindow.SetFixedSize(true)
 	settingsWindow.CenterOnScreen()
 
@@ -56,12 +58,12 @@ func (w *SettingsWindow) setupUI() {
 	w.serverRegex = widget.NewMultiLineEntry()
 	w.serverRegex.SetText(config.CurrentSettings.ServerRegex)
 	w.serverRegex.Wrapping = fyne.TextWrapBreak
-	w.serverRegex.Resize(fyne.NewSize(w.serverRegex.Size().Width, 60))
+	w.serverRegex.Resize(fyne.NewSize(w.serverRegex.Size().Width, 50))
 
 	w.streamKeyRegex = widget.NewMultiLineEntry()
 	w.streamKeyRegex.SetText(config.CurrentSettings.StreamKeyRegex)
 	w.streamKeyRegex.Wrapping = fyne.TextWrapBreak
-	w.streamKeyRegex.Resize(fyne.NewSize(w.streamKeyRegex.Size().Width, 60))
+	w.streamKeyRegex.Resize(fyne.NewSize(w.streamKeyRegex.Size().Width, 50))
 
 	// 创建保存和取消按钮
 	saveBtn := widget.NewButtonWithIcon("保存", theme.DocumentSaveIcon(), func() {
@@ -77,11 +79,34 @@ func (w *SettingsWindow) setupUI() {
 	resetBtn := widget.NewButtonWithIcon("恢复默认配置", theme.HistoryIcon(), func() {
 		dialog.ShowConfirm("确认", "确定要恢复默认配置吗？", func(ok bool) {
 			if ok {
+				// 检查并删除配置文件
+				configPath := "config/tiktok_tool_cfg.toml"
+				if _, err := os.Stat(configPath); err == nil {
+					// 配置文件在 config 目录中
+					if err := os.Remove(configPath); err != nil {
+						dialog.ShowError(fmt.Errorf("删除配置文件失败: %v", err), w.window)
+						return
+					}
+				} else {
+					// 检查当前目录
+					configPath = "tiktok_tool_cfg.toml"
+					if _, err := os.Stat(configPath); err == nil {
+						if err := os.Remove(configPath); err != nil {
+							dialog.ShowError(fmt.Errorf("删除配置文件失败: %v", err), w.window)
+							return
+						}
+					}
+				}
+
 				// 恢复默认配置
 				w.networkList.SetSelected(nil) // 清空网卡选择
 				w.serverRegex.SetText(config.DefaultSettings.ServerRegex)
 				w.streamKeyRegex.SetText(config.DefaultSettings.StreamKeyRegex)
 				alreadyCheck = nil // 清空已选网卡
+
+				// 更新当前设置为默认设置
+				config.CurrentSettings = config.DefaultSettings
+
 				dialog.ShowInformation("成功", "已恢复默认配置", w.window)
 			}
 		}, w.window)
@@ -91,7 +116,7 @@ func (w *SettingsWindow) setupUI() {
 	// 创建网卡列表容器
 	networkCard := container.NewBorder(widget.NewCard("网卡选择", "选择要监听的网卡", nil),
 		nil, nil, nil, container.NewScroll(w.networkList))
-	networkCard.Resize(fyne.NewSize(600, 250))
+	networkCard.Resize(fyne.NewSize(600, 200))
 
 	// 创建正则表达式容器
 	regexCard := widget.NewCard("正则表达式", "",
@@ -102,7 +127,7 @@ func (w *SettingsWindow) setupUI() {
 			),
 		),
 	)
-	regexCard.Resize(fyne.NewSize(600, 200))
+	regexCard.Resize(fyne.NewSize(600, 120))
 
 	// 创建按钮容器，添加恢复默认配置按钮
 	buttonContainer := container.NewHBox(

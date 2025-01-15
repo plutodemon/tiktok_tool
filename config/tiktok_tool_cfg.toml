@@ -1,2 +1,3 @@
-server_regex = "(rtmp://push-rtmp-[^\\.]+\\.douyincdn\\.com/thirdgame)"
+network_interfaces = ["Realtek Gaming GbE Family Controller"]
+server_regex = "(rtmp://push-rtmp-[a-zA-Z0-9\\-]+\\.douyincdn\\.com/thirdgame)"
 stream_key_regex = "(stream-\\d+\\?expire=\\d+&sign=[a-f0-9]+(?:&volcSecret=[a-f0-9]+&volcTime=\\d+)?)"
