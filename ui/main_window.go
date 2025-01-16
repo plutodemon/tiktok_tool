@@ -167,6 +167,11 @@ func (w *MainWindow) handleCapture() {
 			func(err error) {
 				w.status.SetText("错误: " + err.Error())
 			},
+			func() {
+				w.status.SetText("已停止抓包")
+				w.captureBtn.SetText("开始抓包")
+				w.captureBtn.Importance = widget.HighImportance
+			},
 		)
 	} else {
 		// 停止抓包

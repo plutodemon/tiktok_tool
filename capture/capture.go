@@ -11,6 +11,11 @@ import (
 	"tiktok_tool/config"
 )
 
+var (
+	allReadyGetServer = false
+	allReadyGetStream = false
+)
+
 // CheckNpcapInstalled 检查是否安装了Npcap
 func CheckNpcapInstalled() bool {
 	_, err := os.Stat("C:\\Windows\\System32\\Npcap")
@@ -33,7 +38,7 @@ func StopCapturing() {
 }
 
 // StartCapture 开始抓包
-func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onError func(error)) {
+func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onError func(error), onGetAll func()) {
 	allDevices, err := pcap.FindAllDevs()
 	if err != nil {
 		onError(err)
@@ -64,11 +69,11 @@ func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onE
 		if config.IsDebug {
 			fmt.Printf("正在监听网络接口: %s \n", device.Description)
 		}
-		go captureDevice(device.Name, onServerFound, onStreamKeyFound)
+		go captureDevice(device.Name, onServerFound, onStreamKeyFound, onGetAll)
 	}
 }
 
-func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFound func(string)) {
+func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFound func(string), onGetAll func()) {
 	handle, err := pcap.OpenLive(deviceName, 65535, true, pcap.BlockForever)
 	if err != nil {
 		return
@@ -107,14 +112,12 @@ func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFou
 
 			payload := string(appLayer.Payload())
 
-			if strings.Contains(strings.ToLower(payload), "rtmp://") {
-				if config.IsDebug {
-					fmt.Printf("发现包含 rtmp:// 的数据包: %s\n", payload)
-				}
+			if !allReadyGetServer && strings.Contains(strings.ToLower(payload), "rtmp://") {
 				serverRegexCompile := config.CurrentSettings.ServerRegex
 				if len(serverRegexCompile) == 0 {
 					serverRegexCompile = config.DefaultSettings.ServerRegex
 				}
+
 				serverRegex := regexp.MustCompile(serverRegexCompile)
 				matches := serverRegex.FindStringSubmatch(payload)
 
@@ -125,27 +128,36 @@ func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFou
 				if len(matches) >= 1 {
 					serverUrl := matches[1]
 					onServerFound(serverUrl)
+					allReadyGetServer = true
 					if config.IsDebug {
 						fmt.Printf("找到服务器地址: %s\n", serverUrl)
 					}
 				}
+			}
 
-				keyRegex := config.DefaultSettings.StreamKeyRegex
-				if len(config.CurrentSettings.StreamKeyRegex) > 0 && config.CurrentSettings.StreamKeyRegex != keyRegex {
-					keyRegex = config.CurrentSettings.StreamKeyRegex
+			if !allReadyGetStream {
+				streamKeyRegexCompile := config.CurrentSettings.StreamKeyRegex
+				if len(streamKeyRegexCompile) == 0 {
+					streamKeyRegexCompile = config.DefaultSettings.StreamKeyRegex
 				}
 
-				streamRegex := regexp.MustCompile(keyRegex)
-				matches = streamRegex.FindStringSubmatch(payload)
+				streamRegex := regexp.MustCompile(streamKeyRegexCompile)
+				matches := streamRegex.FindStringSubmatch(payload)
 
 				if len(matches) >= 1 {
-					streamKey := matches[1]
-					onStreamKeyFound(streamKey)
+					streamStr := matches[1]
+					onStreamKeyFound(streamStr)
+					allReadyGetStream = true
 					if config.IsDebug {
-						fmt.Printf("找到推流码: %s\n", streamKey)
+						fmt.Printf("找到推流码字符串: %s\n", streamStr)
 					}
 					break
 				}
+			}
+
+			if allReadyGetServer && allReadyGetStream {
+				onGetAll()
+				StopCapturing()
 			}
 		}
 	}
