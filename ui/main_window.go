@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"os"
 	"os/exec"
+	"strings"
 	"tiktok_tool/capture"
 	"tiktok_tool/config"
 )
@@ -99,16 +100,30 @@ func (w *MainWindow) setupUI() {
 	})
 
 	// 创建设置按钮
-	w.settingBtn = widget.NewButtonWithIcon("", theme.SettingsIcon(), func() {
+	w.settingBtn = widget.NewButtonWithIcon("设置", theme.SettingsIcon(), func() {
 		ShowSettingsWindow(w.app)
 	})
 
-	// 创建状态栏
-	statusBar := container.NewHBox(
+	// 导入OBS配置按钮
+	importOBSBtn := widget.NewButtonWithIcon("导入OBS", theme.DocumentSaveIcon(), w.handleImportOBS)
+	importOBSBtn.Importance = widget.MediumImportance
+
+	left := container.NewHBox(
 		widget.NewIcon(theme.InfoIcon()),
 		w.status,
+	)
+	right := container.NewHBox(
 		helpBtn,
 		w.settingBtn,
+		importOBSBtn,
+	)
+
+	// 创建状态栏
+	statusBar := container.NewBorder(
+		nil,
+		nil,
+		left,
+		right,
 	)
 
 	content := container.NewVBox(
@@ -205,4 +220,42 @@ func (w *MainWindow) handleRestart() {
 
 		w.app.Quit()
 	})
+}
+
+// handleImportOBS 处理导入OBS配置
+func (w *MainWindow) handleImportOBS() {
+	// 检查是否有推流信息
+	serverAddr := strings.TrimSpace(w.serverAddr.Text)
+	streamKey := strings.TrimSpace(w.streamKey.Text)
+
+	if serverAddr == "" || streamKey == "" {
+		dialog.ShowInformation("提示", "请先抓取到推流服务器地址和推流码", w.window)
+		return
+	}
+
+	// 检查OBS配置路径是否设置
+	obsConfigPath := strings.TrimSpace(config.CurrentSettings.OBSConfigPath)
+	if obsConfigPath == "" {
+		dialog.ShowInformation("提示", "请先在设置中配置OBS配置文件路径", w.window)
+		return
+	}
+
+	// 确认对话框
+	dialog.ShowConfirm("确认导入",
+		"将要导入配置到以下OBS配置文件中：\n"+obsConfigPath,
+		func(confirmed bool) {
+			if !confirmed {
+				return
+			}
+
+			// 写入OBS配置
+			err := config.WriteOBSConfig(obsConfigPath, serverAddr, streamKey)
+			if err != nil {
+				dialog.ShowError(fmt.Errorf("导入OBS配置失败：%v", err), w.window)
+				return
+			}
+
+			w.status.SetText("OBS配置导入成功")
+			dialog.ShowInformation("成功", "推流配置已成功导入到OBS！", w.window)
+		}, w.window)
 }
