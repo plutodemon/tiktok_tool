@@ -5,6 +5,8 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"os"
 	"strings"
+	"tiktok_tool/lkit"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -16,12 +18,13 @@ import (
 )
 
 type SettingsWindow struct {
-	window          fyne.Window
-	networkList     *widget.CheckGroup
-	selectedDevices []string
-	serverRegex     *widget.Entry
-	streamKeyRegex  *widget.Entry
-	obsConfigPath   *widget.Entry
+	window            fyne.Window
+	networkList       *widget.CheckGroup
+	selectedDevices   []string
+	serverRegex       *widget.Entry
+	streamKeyRegex    *widget.Entry
+	obsConfigPath     *widget.Entry
+	liveCompanionPath *widget.Entry
 }
 
 func ShowSettingsWindow(parent fyne.App) {
@@ -33,7 +36,7 @@ func ShowSettingsWindow(parent fyne.App) {
 
 	sw := &SettingsWindow{
 		window:          settingsWindow,
-		selectedDevices: config.CurrentSettings.NetworkInterfaces,
+		selectedDevices: config.GetConfig().NetworkInterfaces,
 	}
 
 	sw.setupUI()
@@ -58,19 +61,24 @@ func (w *SettingsWindow) setupUI() {
 
 	// 创建正则表达式输入框
 	w.serverRegex = widget.NewMultiLineEntry()
-	w.serverRegex.SetText(config.CurrentSettings.ServerRegex)
+	w.serverRegex.SetText(config.GetConfig().ServerRegex)
 	w.serverRegex.Wrapping = fyne.TextWrapBreak
 	w.serverRegex.Resize(fyne.NewSize(w.serverRegex.Size().Width, 50))
 
 	w.streamKeyRegex = widget.NewMultiLineEntry()
-	w.streamKeyRegex.SetText(config.CurrentSettings.StreamKeyRegex)
+	w.streamKeyRegex.SetText(config.GetConfig().StreamKeyRegex)
 	w.streamKeyRegex.Wrapping = fyne.TextWrapBreak
 	w.streamKeyRegex.Resize(fyne.NewSize(w.streamKeyRegex.Size().Width, 50))
 
 	// 创建OBS配置路径输入框
 	w.obsConfigPath = widget.NewEntry()
-	w.obsConfigPath.SetText(config.CurrentSettings.OBSConfigPath)
+	w.obsConfigPath.SetText(config.GetConfig().OBSConfigPath)
 	w.obsConfigPath.SetPlaceHolder("请选择OBS配置文件路径 (service.json)")
+
+	// 创建直播伴侣路径输入框
+	w.liveCompanionPath = widget.NewEntry()
+	w.liveCompanionPath.SetText(config.GetConfig().LiveCompanionPath)
+	w.liveCompanionPath.SetPlaceHolder("请选择直播伴侣启动路径 (douyin_live.exe)")
 
 	// 创建浏览按钮
 	browseBtn := widget.NewButtonWithIcon("浏览", theme.FolderOpenIcon(), func() {
@@ -80,6 +88,16 @@ func (w *SettingsWindow) setupUI() {
 	// 创建自动检测按钮
 	autoDetectBtn := widget.NewButtonWithIcon("自动检测", theme.SearchIcon(), func() {
 		w.autoDetectOBSConfig()
+	})
+
+	// 创建直播伴侣浏览按钮
+	browseLiveCompanionBtn := widget.NewButtonWithIcon("浏览", theme.FolderOpenIcon(), func() {
+		w.browseLiveCompanionConfig()
+	})
+
+	// 创建直播伴侣自动检测按钮
+	autoDetectLiveCompanionBtn := widget.NewButtonWithIcon("自动检测", theme.SearchIcon(), func() {
+		w.autoDetectLiveCompanionConfig()
 	})
 
 	// 创建保存和取消按钮
@@ -117,13 +135,14 @@ func (w *SettingsWindow) setupUI() {
 
 				// 恢复默认配置
 				w.networkList.SetSelected(nil) // 清空网卡选择
-				w.serverRegex.SetText(config.DefaultSettings.ServerRegex)
-				w.streamKeyRegex.SetText(config.DefaultSettings.StreamKeyRegex)
-				w.obsConfigPath.SetText(config.DefaultSettings.OBSConfigPath)
+				w.serverRegex.SetText(config.DefaultConfig.ServerRegex)
+				w.streamKeyRegex.SetText(config.DefaultConfig.StreamKeyRegex)
+				w.obsConfigPath.SetText(config.DefaultConfig.OBSConfigPath)
+				w.liveCompanionPath.SetText(config.DefaultConfig.LiveCompanionPath)
 				alreadyCheck = nil // 清空已选网卡
 
 				// 更新当前设置为默认设置
-				config.CurrentSettings = config.DefaultSettings
+				config.SetConfig(config.DefaultConfig)
 
 				dialog.ShowInformation("成功", "已恢复默认配置", w.window)
 			}
@@ -140,6 +159,10 @@ func (w *SettingsWindow) setupUI() {
 	obsPathContainer := container.NewBorder(nil, nil, nil,
 		container.NewHBox(browseBtn, autoDetectBtn), w.obsConfigPath)
 
+	// 创建直播伴侣路径容器
+	liveCompanionPathContainer := container.NewBorder(nil, nil, nil,
+		container.NewHBox(browseLiveCompanionBtn, autoDetectLiveCompanionBtn), w.liveCompanionPath)
+
 	// 创建配置容器
 	configCard := widget.NewCard("配置设置", "",
 		container.NewVBox(
@@ -147,6 +170,7 @@ func (w *SettingsWindow) setupUI() {
 				widget.NewFormItem("服务器地址正则", w.serverRegex),
 				widget.NewFormItem("推流码正则", w.streamKeyRegex),
 				widget.NewFormItem("OBS配置文件路径", obsPathContainer),
+				widget.NewFormItem("直播伴侣启动路径", liveCompanionPathContainer),
 			),
 		),
 	)
@@ -166,11 +190,12 @@ func (w *SettingsWindow) setupUI() {
 
 func (w *SettingsWindow) saveSettings(checks []string) {
 	// 创建新的设置
-	newSettings := config.Settings{
+	newSettings := config.Config{
 		NetworkInterfaces: checks,
 		ServerRegex:       strings.TrimSpace(w.serverRegex.Text),
 		StreamKeyRegex:    strings.TrimSpace(w.streamKeyRegex.Text),
 		OBSConfigPath:     strings.TrimSpace(w.obsConfigPath.Text),
+		LiveCompanionPath: strings.TrimSpace(w.liveCompanionPath.Text),
 	}
 
 	// 保存设置
@@ -180,7 +205,7 @@ func (w *SettingsWindow) saveSettings(checks []string) {
 	}
 
 	// 更新当前设置
-	config.CurrentSettings = newSettings
+	config.SetConfig(newSettings)
 
 	dialog.ShowInformation("成功", "设置已保存", w.window)
 	w.window.Close()
@@ -214,4 +239,49 @@ func (w *SettingsWindow) autoDetectOBSConfig() {
 
 	w.obsConfigPath.SetText(detectedPath)
 	dialog.ShowInformation("检测成功", fmt.Sprintf("已自动检测到OBS配置文件：\n%s", detectedPath), w.window)
+}
+
+// browseLiveCompanionConfig 浏览选择直播伴侣启动文件
+func (w *SettingsWindow) browseLiveCompanionConfig() {
+	fileDialog := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+		if reader == nil {
+			return
+		}
+		defer reader.Close()
+
+		filePath := reader.URI().Path()
+		w.liveCompanionPath.SetText(filePath)
+	}, w.window)
+
+	// 设置文件过滤器
+	filter := storage.NewExtensionFileFilter([]string{".exe"})
+	fileDialog.SetFilter(filter)
+	fileDialog.Show()
+}
+
+// autoDetectLiveCompanionConfig 自动检测直播伴侣启动路径
+func (w *SettingsWindow) autoDetectLiveCompanionConfig() {
+	progressDialog := dialog.NewCustomWithoutButtons("搜索中", widget.NewLabel("正在搜索直播伴侣安装路径，请稍候..."), w.window)
+	progressDialog.Show()
+
+	resultChan := make(chan string)
+
+	lkit.SafeGo(func() {
+		resultChan <- config.FindLiveCompanionPath()
+	})
+
+	select {
+	case result := <-resultChan:
+		progressDialog.Hide()
+		if result == "" {
+			dialog.ShowInformation("检测结果", "未找到直播伴侣安装路径。\n\n可能的原因：\n1. 抖音直播伴侣未安装\n2. 安装在非标准位置\n3. 文件名与预期不符\n\n请尝试手动浏览选择。", w.window)
+			return
+		}
+		w.liveCompanionPath.SetText(result)
+		dialog.ShowInformation("检测成功", fmt.Sprintf("已自动检测到直播伴侣启动路径：\n%s", result), w.window)
+
+	case <-time.After(15 * time.Second):
+		progressDialog.Hide()
+		dialog.ShowInformation("检测结果", "未找到直播伴侣安装路径。\n\n可能的原因：\n1. 抖音直播伴侣未安装\n2. 安装在非标准位置\n3. 文件名与预期不符\n\n请尝试手动浏览选择。", w.window)
+	}
 }

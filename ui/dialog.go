@@ -36,12 +36,12 @@ func ShowInstallDialog(window fyne.Window) {
 func ShowHelpDialog(window fyne.Window) {
 	scroll := container.NewScroll(
 		container.NewVBox(
-			widget.NewLabel("声明："),
-			widget.NewLabel("本软件为开源软件,不会收取任何费用"),
-			widget.NewLabel("本软件仅供学习交流使用,请勿用于商业用途"),
+			widget.NewLabel("!!!声明!!!"),
+			widget.NewLabel("!!!本软件为开源软件,不会收取任何费用!!!"),
+			widget.NewLabel("!!!本软件仅供学习交流使用,请勿用于商业用途!!!"),
 			widget.NewLabel("使用方法："),
 			widget.NewLabel("1. 点击\"开始抓包\"按钮"),
-			widget.NewLabel("2. 打开抖音直播"),
+			widget.NewLabel("2. 打开抖音直播伴侣, 开始直播"),
 			widget.NewLabel("3. 等待自动获取推流配置"),
 			widget.NewLabel("4. 如需停止请点击\"停止抓包\"按钮"),
 		),
@@ -56,7 +56,7 @@ func ShowHelpDialog(window fyne.Window) {
 	)
 
 	helpDialog := dialog.NewCustom("使用说明", "关闭", content, window)
-	helpDialog.Resize(fyne.NewSize(300, 220))
+	helpDialog.Resize(fyne.NewSize(370, 220))
 	helpDialog.Show()
 }
 

@@ -2,11 +2,13 @@ package main
 
 import (
 	_ "embed"
+	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/dialog"
 	"tiktok_tool/capture"
 	"tiktok_tool/config"
+	"tiktok_tool/lkit"
+	"tiktok_tool/llog"
 	"tiktok_tool/ui"
 )
 
@@ -14,6 +16,21 @@ import (
 var iconBytes []byte
 
 func main() {
+	lkit.InitCrashLog()
+	defer lkit.CrashLog()
+
+	if err := config.LoadConfig(); err != nil {
+		panic(fmt.Sprintf("初始化配置失败: %v", err))
+	}
+
+	if err := llog.Init(config.GetConfig().LogConfig); err != nil {
+		panic(fmt.Sprintf("初始化日志系统失败: %v", err))
+	}
+	defer llog.Cleanup()
+
+	// 设置全局panic处理
+	defer llog.HandlePanic()
+
 	myApp := app.New()
 	myApp.SetIcon(&fyne.StaticResource{
 		StaticName:    "icon",
@@ -24,11 +41,6 @@ func main() {
 	window.SetFixedSize(true)
 	window.SetMaster()
 	window.CenterOnScreen()
-
-	// 加载配置文件
-	if err := config.LoadSettings(); err != nil {
-		dialog.ShowError(err, window)
-	}
 
 	if !capture.CheckNpcapInstalled() {
 		ui.ShowInstallDialog(window)

@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"tiktok_tool/config"
+	"tiktok_tool/lkit"
+	"tiktok_tool/llog"
 )
 
 var (
@@ -47,7 +49,7 @@ func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onE
 
 	devices := make([]pcap.Interface, 0)
 	for _, device := range allDevices {
-		if len(config.CurrentSettings.NetworkInterfaces) == 0 {
+		if len(config.GetConfig().NetworkInterfaces) == 0 {
 			if strings.Contains(device.Description, "Bluetooth") ||
 				strings.Contains(device.Description, "loopback") {
 				continue
@@ -55,7 +57,7 @@ func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onE
 			devices = append(devices, device)
 			continue
 		}
-		if slices.Contains(config.CurrentSettings.NetworkInterfaces, device.Description) {
+		if slices.Contains(config.GetConfig().NetworkInterfaces, device.Description) {
 			devices = append(devices, device)
 		}
 	}
@@ -67,9 +69,11 @@ func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onE
 
 	for _, device := range devices {
 		if config.IsDebug {
-			fmt.Printf("正在监听网络接口: %s \n", device.Description)
+			llog.DebugF("正在监听网络接口: %s", device.Description)
 		}
-		go captureDevice(device.Name, onServerFound, onStreamKeyFound, onGetAll)
+		lkit.SafeGo(func() {
+			captureDevice(device.Name, onServerFound, onStreamKeyFound, onGetAll)
+		})
 	}
 }
 
@@ -113,16 +117,16 @@ func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFou
 			payload := string(appLayer.Payload())
 
 			if !allReadyGetServer && strings.Contains(strings.ToLower(payload), "rtmp://") {
-				serverRegexCompile := config.CurrentSettings.ServerRegex
+				serverRegexCompile := config.GetConfig().ServerRegex
 				if len(serverRegexCompile) == 0 {
-					serverRegexCompile = config.DefaultSettings.ServerRegex
+					serverRegexCompile = config.DefaultConfig.ServerRegex
 				}
 
 				serverRegex := regexp.MustCompile(serverRegexCompile)
 				matches := serverRegex.FindStringSubmatch(payload)
 
 				if config.IsDebug {
-					fmt.Printf("服务器地址匹配结果: %v\n", matches)
+					llog.DebugF("服务器地址匹配结果: %v", matches)
 				}
 
 				if len(matches) >= 1 {
@@ -130,15 +134,15 @@ func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFou
 					onServerFound(serverUrl)
 					allReadyGetServer = true
 					if config.IsDebug {
-						fmt.Printf("找到服务器地址: %s\n", serverUrl)
+						llog.DebugF("找到服务器地址: %s", serverUrl)
 					}
 				}
 			}
 
 			if !allReadyGetStream {
-				streamKeyRegexCompile := config.CurrentSettings.StreamKeyRegex
+				streamKeyRegexCompile := config.GetConfig().StreamKeyRegex
 				if len(streamKeyRegexCompile) == 0 {
-					streamKeyRegexCompile = config.DefaultSettings.StreamKeyRegex
+					streamKeyRegexCompile = config.DefaultConfig.StreamKeyRegex
 				}
 
 				streamRegex := regexp.MustCompile(streamKeyRegexCompile)
@@ -149,7 +153,7 @@ func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFou
 					onStreamKeyFound(streamStr)
 					allReadyGetStream = true
 					if config.IsDebug {
-						fmt.Printf("找到推流码字符串: %s\n", streamStr)
+						llog.DebugF("找到推流码字符串: %s", streamStr)
 					}
 					break
 				}
