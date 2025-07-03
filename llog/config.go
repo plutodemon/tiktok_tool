@@ -27,7 +27,7 @@ func getLogLevel(level string) zapcore.Level {
 }
 
 // DefaultConfig 默认日志配置
-var DefaultConfig = LogSetting{
+var DefaultConfig = &LogSetting{
 	Console:      true,
 	File:         true,
 	FilePath:     "logs",

@@ -2,12 +2,13 @@ package capture
 
 import (
 	"fmt"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/pcap"
 	"os"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/pcap"
 	"tiktok_tool/config"
 	"tiktok_tool/lkit"
 	"tiktok_tool/llog"

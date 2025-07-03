@@ -7,7 +7,6 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
-	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -43,7 +42,7 @@ func Init(logConfig *LogSetting) error {
 // initLogger 实际的日志初始化函数
 func initLogger(logConfig *LogSetting) error {
 	if logConfig == nil {
-		logConfig = &DefaultConfig
+		logConfig = DefaultConfig
 	}
 
 	// 创建日志目录
@@ -85,7 +84,7 @@ func initLogger(logConfig *LogSetting) error {
 	// 添加文件输出
 	if logConfig.File {
 		// 使用当前日期作为日志文件名
-		fileName := fmt.Sprintf(logConfig.Format, time.Now().Format("2006-01-02"))
+		fileName := fmt.Sprintf(logConfig.Format, "tiktok_tool")
 		path := filepath.Join(logConfig.FilePath, fileName)
 
 		var fileEncoder zapcore.Encoder

@@ -1,11 +1,12 @@
 package config
 
 import (
-	"github.com/BurntSushi/toml"
-	"github.com/google/gopacket/pcap"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/BurntSushi/toml"
+	"github.com/google/gopacket/pcap"
 	"tiktok_tool/llog"
 )
 
@@ -48,6 +49,7 @@ var DefaultConfig = Config{
 	StreamKeyRegex:    `(stream-\d+\?expire=\d+&sign=[a-f0-9]+(?:&volcSecret=[a-f0-9]+&volcTime=\d+)?)`,
 	OBSConfigPath:     "", // 默认为空，需要用户手动配置
 	LiveCompanionPath: "", // 默认为空，需要用户手动配置
+	LogConfig:         llog.DefaultConfig,
 }
 
 // LoadConfig 加载配置文件
@@ -72,10 +74,10 @@ func SaveSettings(settings Config) error {
 	configDir := "config"
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		// config目录不存在，创建它
-		//if err := os.MkdirAll(configDir, 0755); err != nil {
+		// if err := os.MkdirAll(configDir, 0755); err != nil {
 		// 如果创建失败，保存到当前目录
 		configDir = "."
-		//}
+		// }
 	}
 	configPath = filepath.Join(configDir, "tiktok_tool_cfg.toml")
 	file, err := os.Create(configPath)

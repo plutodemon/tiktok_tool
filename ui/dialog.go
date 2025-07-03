@@ -1,11 +1,12 @@
 package ui
 
 import (
+	"os/exec"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
-	"os/exec"
 )
 
 // ShowInstallDialog 显示Npcap安装对话框

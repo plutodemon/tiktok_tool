@@ -2,11 +2,12 @@ package ui
 
 import (
 	"fmt"
-	"fyne.io/fyne/v2/storage"
 	"os"
 	"strings"
-	"tiktok_tool/lkit"
 	"time"
+
+	"fyne.io/fyne/v2/storage"
+	"tiktok_tool/lkit"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -25,14 +26,18 @@ type SettingsWindow struct {
 	streamKeyRegex    *widget.Entry
 	obsConfigPath     *widget.Entry
 	liveCompanionPath *widget.Entry
+	// 日志配置相关字段
+	logToFile *widget.Check
+	logLevel  *widget.Select
 }
 
-func ShowSettingsWindow(parent fyne.App) {
+func ShowSettingsWindow(parent fyne.App, closeCallback func()) {
 	// 创建设置窗口
 	settingsWindow := parent.NewWindow("设置")
 	settingsWindow.Resize(fyne.NewSize(600, 600))
 	settingsWindow.SetFixedSize(true)
 	settingsWindow.CenterOnScreen()
+	settingsWindow.SetOnClosed(closeCallback)
 
 	sw := &SettingsWindow{
 		window:          settingsWindow,
@@ -79,6 +84,20 @@ func (w *SettingsWindow) setupUI() {
 	w.liveCompanionPath = widget.NewEntry()
 	w.liveCompanionPath.SetText(config.GetConfig().LiveCompanionPath)
 	w.liveCompanionPath.SetPlaceHolder("请选择直播伴侣启动路径 (douyin_live.exe)")
+
+	// 创建日志配置控件
+	currentConfig := config.GetConfig()
+	w.logToFile = widget.NewCheck("输出到文件", nil)
+	if currentConfig.LogConfig != nil {
+		w.logToFile.SetChecked(currentConfig.LogConfig.File)
+	}
+
+	w.logLevel = widget.NewSelect([]string{"debug", "info", "warn", "error"}, nil)
+	if currentConfig.LogConfig != nil {
+		w.logLevel.SetSelected(currentConfig.LogConfig.Level)
+	} else {
+		w.logLevel.SetSelected("info")
+	}
 
 	// 创建浏览按钮
 	browseBtn := widget.NewButtonWithIcon("浏览", theme.FolderOpenIcon(), func() {
@@ -139,6 +158,11 @@ func (w *SettingsWindow) setupUI() {
 				w.streamKeyRegex.SetText(config.DefaultConfig.StreamKeyRegex)
 				w.obsConfigPath.SetText(config.DefaultConfig.OBSConfigPath)
 				w.liveCompanionPath.SetText(config.DefaultConfig.LiveCompanionPath)
+				// 恢复日志配置默认值
+				if config.DefaultConfig.LogConfig != nil {
+					w.logToFile.SetChecked(config.DefaultConfig.LogConfig.File)
+					w.logLevel.SetSelected(config.DefaultConfig.LogConfig.Level)
+				}
 				alreadyCheck = nil // 清空已选网卡
 
 				// 更新当前设置为默认设置
@@ -163,6 +187,13 @@ func (w *SettingsWindow) setupUI() {
 	liveCompanionPathContainer := container.NewBorder(nil, nil, nil,
 		container.NewHBox(browseLiveCompanionBtn, autoDetectLiveCompanionBtn), w.liveCompanionPath)
 
+	// 创建日志配置容器
+	logConfigContainer := container.NewHBox(
+		w.logToFile,
+		widget.NewLabel("日志等级:"),
+		w.logLevel,
+	)
+
 	// 创建配置容器
 	configCard := widget.NewCard("配置设置", "",
 		container.NewVBox(
@@ -171,6 +202,7 @@ func (w *SettingsWindow) setupUI() {
 				widget.NewFormItem("推流码正则", w.streamKeyRegex),
 				widget.NewFormItem("OBS配置文件路径", obsPathContainer),
 				widget.NewFormItem("直播伴侣启动路径", liveCompanionPathContainer),
+				widget.NewFormItem("日志配置", logConfigContainer),
 			),
 		),
 	)
@@ -189,6 +221,18 @@ func (w *SettingsWindow) setupUI() {
 }
 
 func (w *SettingsWindow) saveSettings(checks []string) {
+	// 获取当前配置以保留其他日志设置
+	currentConfig := config.GetConfig()
+	logConfig := currentConfig.LogConfig
+	if logConfig == nil {
+		logConfig = config.DefaultConfig.LogConfig
+	}
+
+	// 更新日志配置
+	updatedLogConfig := *logConfig
+	updatedLogConfig.File = w.logToFile.Checked
+	updatedLogConfig.Level = w.logLevel.Selected
+
 	// 创建新的设置
 	newSettings := config.Config{
 		NetworkInterfaces: checks,
@@ -196,6 +240,7 @@ func (w *SettingsWindow) saveSettings(checks []string) {
 		StreamKeyRegex:    strings.TrimSpace(w.streamKeyRegex.Text),
 		OBSConfigPath:     strings.TrimSpace(w.obsConfigPath.Text),
 		LiveCompanionPath: strings.TrimSpace(w.liveCompanionPath.Text),
+		LogConfig:         &updatedLogConfig,
 	}
 
 	// 保存设置

@@ -104,7 +104,10 @@ func (w *MainWindow) setupUI() {
 
 	// 创建设置按钮
 	w.settingBtn = widget.NewButtonWithIcon("设置", theme.SettingsIcon(), func() {
-		ShowSettingsWindow(w.app)
+		ShowSettingsWindow(w.app, func() {
+			w.window.Show()
+		})
+		w.window.Hide()
 	})
 
 	// 导入OBS配置按钮

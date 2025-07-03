@@ -7,10 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"tiktok_tool/lkit"
-	"tiktok_tool/llog"
 	"time"
 	"unsafe"
+
+	"tiktok_tool/lkit"
+	"tiktok_tool/llog"
 )
 
 func FindFileInAllDrives(fileName string) string {
