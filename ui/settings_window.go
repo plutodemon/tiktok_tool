@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/storage"
 	"tiktok_tool/lkit"
 
@@ -34,7 +35,7 @@ type SettingsWindow struct {
 func ShowSettingsWindow(parent fyne.App, closeCallback func()) {
 	// 创建设置窗口
 	settingsWindow := parent.NewWindow("设置")
-	settingsWindow.Resize(fyne.NewSize(600, 600))
+	settingsWindow.Resize(fyne.NewSize(600, 350))
 	settingsWindow.SetFixedSize(true)
 	settingsWindow.CenterOnScreen()
 	settingsWindow.SetOnClosed(closeCallback)
@@ -48,6 +49,7 @@ func ShowSettingsWindow(parent fyne.App, closeCallback func()) {
 	settingsWindow.Show()
 }
 
+// setupUI 设置用户界面
 func (w *SettingsWindow) setupUI() {
 	// 获取所有网卡
 	devices, _ := pcap.FindAllDevs()
@@ -68,12 +70,12 @@ func (w *SettingsWindow) setupUI() {
 	w.serverRegex = widget.NewMultiLineEntry()
 	w.serverRegex.SetText(config.GetConfig().ServerRegex)
 	w.serverRegex.Wrapping = fyne.TextWrapBreak
-	w.serverRegex.Resize(fyne.NewSize(w.serverRegex.Size().Width, 50))
+	w.serverRegex.Resize(fyne.NewSize(w.serverRegex.Size().Width, 80))
 
 	w.streamKeyRegex = widget.NewMultiLineEntry()
 	w.streamKeyRegex.SetText(config.GetConfig().StreamKeyRegex)
 	w.streamKeyRegex.Wrapping = fyne.TextWrapBreak
-	w.streamKeyRegex.Resize(fyne.NewSize(w.streamKeyRegex.Size().Width, 50))
+	w.streamKeyRegex.Resize(fyne.NewSize(w.streamKeyRegex.Size().Width, 80))
 
 	// 创建OBS配置路径输入框
 	w.obsConfigPath = widget.NewEntry()
@@ -83,7 +85,7 @@ func (w *SettingsWindow) setupUI() {
 	// 创建直播伴侣路径输入框
 	w.liveCompanionPath = widget.NewEntry()
 	w.liveCompanionPath.SetText(config.GetConfig().LiveCompanionPath)
-	w.liveCompanionPath.SetPlaceHolder("请选择直播伴侣启动路径 (douyin_live.exe)")
+	w.liveCompanionPath.SetPlaceHolder("请选择直播伴侣启动路径 (直播伴侣 Launcher.exe)")
 
 	// 创建日志配置控件
 	currentConfig := config.GetConfig()
@@ -99,6 +101,119 @@ func (w *SettingsWindow) setupUI() {
 		w.logLevel.SetSelected("info")
 	}
 
+	// 创建标签页内容
+	regexTab := w.createRegexTab()
+	networkTab := w.createNetworkTab()
+	logTab := w.createLogTab()
+	otherTab := w.createOtherTab()
+
+	// 创建标签容器
+	tabs := container.NewAppTabs(
+		container.NewTabItemWithIcon("正则设置", theme.DocumentIcon(), regexTab),
+		container.NewTabItemWithIcon("网卡设置", theme.SearchIcon(), networkTab),
+		container.NewTabItemWithIcon("日志设置", theme.ErrorIcon(), logTab),
+		container.NewTabItemWithIcon("其他设置", theme.SettingsIcon(), otherTab),
+	)
+	tabs.SetTabLocation(container.TabLocationTop)
+
+	// 创建保存和取消按钮
+	saveBtn := widget.NewButtonWithIcon("保存配置", theme.DocumentSaveIcon(), func() {
+		w.saveSettings(alreadyCheck)
+	})
+	saveBtn.Importance = widget.HighImportance
+
+	// 创建恢复默认配置按钮
+	resetBtn := widget.NewButtonWithIcon("恢复默认配置", theme.HistoryIcon(), func() {
+		w.resetToDefaults(&alreadyCheck)
+	})
+	resetBtn.Importance = widget.WarningImportance
+
+	cancelBtn := widget.NewButtonWithIcon("取消配置", theme.MailReplyIcon(), func() {
+		w.window.Close()
+	})
+
+	// 创建按钮容器
+	buttonContainer := container.NewHBox(
+		saveBtn,
+		resetBtn,
+		layout.NewSpacer(),
+		cancelBtn,
+	)
+
+	// 设置内容
+	w.window.SetContent(container.NewBorder(nil, buttonContainer, nil, nil, tabs))
+}
+
+// createRegexTab 创建正则设置标签页
+func (w *SettingsWindow) createRegexTab() fyne.CanvasObject {
+	// 创建正则表达式表单
+	regexForm := widget.NewForm(
+		widget.NewFormItem("服务器地址正则", w.serverRegex),
+		widget.NewFormItem("推流码正则", w.streamKeyRegex),
+	)
+
+	// 添加说明文本
+	regexHelp := widget.NewRichTextFromMarkdown("### 正则表达式说明\n\n" +
+		"* **服务器地址正则**：用于匹配抓包数据中的推流服务器地址\n" +
+		"* **推流码正则**：用于匹配抓包数据中的推流密钥\n\n" +
+		"正则表达式需要包含一个捕获组，用于提取匹配的内容。")
+
+	// 创建容器
+	return container.NewVBox(
+		regexForm,
+		layout.NewSpacer(),
+		regexHelp,
+	)
+}
+
+// createLogTab 创建日志设置标签页
+func (w *SettingsWindow) createLogTab() fyne.CanvasObject {
+	// 创建日志配置容器
+	logConfigContainer := container.NewVBox(
+		w.logToFile,
+		container.NewHBox(
+			widget.NewLabel("日志等级:"),
+			w.logLevel,
+		),
+	)
+
+	// 添加日志等级说明
+	logLevelHelp := widget.NewRichTextFromMarkdown("### 日志等级说明\n\n" +
+		"* **debug**: 最详细的日志信息，包含调试信息\n" +
+		"* **info**: 一般信息日志（默认等级）\n" +
+		"* **warn**: 警告信息\n" +
+		"* **error**: 仅记录错误信息\n" +
+		"### 注意:日志配置更改后需重启软件")
+
+	// 创建容器
+	return container.NewVBox(
+		logConfigContainer,
+		layout.NewSpacer(),
+		logLevelHelp,
+	)
+}
+
+// createNetworkTab 创建网卡设置标签页
+func (w *SettingsWindow) createNetworkTab() fyne.CanvasObject {
+	// 创建网卡列表容器
+	networkScroll := container.NewScroll(w.networkList)
+	networkScroll.SetMinSize(fyne.NewSize(500, 170))
+
+	// 添加说明文本
+	networkHelp := widget.NewRichTextFromMarkdown("### 网卡选择说明\n\n" +
+		"选择需要监听的网卡，抓包功能将监听所选网卡的网络流量。\n\n" +
+		"如果不确定使用哪个网卡，可以选择多个网卡同时监听。")
+
+	// 创建容器
+	return container.NewVBox(
+		networkScroll,
+		layout.NewSpacer(),
+		networkHelp,
+	)
+}
+
+// createOtherTab 创建其他设置标签页
+func (w *SettingsWindow) createOtherTab() fyne.CanvasObject {
 	// 创建浏览按钮
 	browseBtn := widget.NewButtonWithIcon("浏览", theme.FolderOpenIcon(), func() {
 		w.browseOBSConfig()
@@ -119,66 +234,6 @@ func (w *SettingsWindow) setupUI() {
 		w.autoDetectLiveCompanionConfig()
 	})
 
-	// 创建保存和取消按钮
-	saveBtn := widget.NewButtonWithIcon("保存", theme.DocumentSaveIcon(), func() {
-		w.saveSettings(alreadyCheck)
-	})
-	saveBtn.Importance = widget.HighImportance
-
-	cancelBtn := widget.NewButton("取消", func() {
-		w.window.Close()
-	})
-
-	// 创建恢复默认配置按钮
-	resetBtn := widget.NewButtonWithIcon("恢复默认配置", theme.HistoryIcon(), func() {
-		dialog.ShowConfirm("确认", "确定要恢复默认配置吗？", func(ok bool) {
-			if ok {
-				// 检查并删除配置文件
-				configPath := "config/tiktok_tool_cfg.toml"
-				if _, err := os.Stat(configPath); err == nil {
-					// 配置文件在 config 目录中
-					if err := os.Remove(configPath); err != nil {
-						dialog.ShowError(fmt.Errorf("删除配置文件失败: %v", err), w.window)
-						return
-					}
-				} else {
-					// 检查当前目录
-					configPath = "tiktok_tool_cfg.toml"
-					if _, err := os.Stat(configPath); err == nil {
-						if err := os.Remove(configPath); err != nil {
-							dialog.ShowError(fmt.Errorf("删除配置文件失败: %v", err), w.window)
-							return
-						}
-					}
-				}
-
-				// 恢复默认配置
-				w.networkList.SetSelected(nil) // 清空网卡选择
-				w.serverRegex.SetText(config.DefaultConfig.ServerRegex)
-				w.streamKeyRegex.SetText(config.DefaultConfig.StreamKeyRegex)
-				w.obsConfigPath.SetText(config.DefaultConfig.OBSConfigPath)
-				w.liveCompanionPath.SetText(config.DefaultConfig.LiveCompanionPath)
-				// 恢复日志配置默认值
-				if config.DefaultConfig.LogConfig != nil {
-					w.logToFile.SetChecked(config.DefaultConfig.LogConfig.File)
-					w.logLevel.SetSelected(config.DefaultConfig.LogConfig.Level)
-				}
-				alreadyCheck = nil // 清空已选网卡
-
-				// 更新当前设置为默认设置
-				config.SetConfig(config.DefaultConfig)
-
-				dialog.ShowInformation("成功", "已恢复默认配置", w.window)
-			}
-		}, w.window)
-	})
-	resetBtn.Importance = widget.WarningImportance
-
-	// 创建网卡列表容器
-	networkCard := container.NewBorder(widget.NewCard("网卡选择", "选择要监听的网卡", nil),
-		nil, nil, nil, container.NewScroll(w.networkList))
-	networkCard.Resize(fyne.NewSize(600, 200))
-
 	// 创建OBS配置路径容器
 	obsPathContainer := container.NewBorder(nil, nil, nil,
 		container.NewHBox(browseBtn, autoDetectBtn), w.obsConfigPath)
@@ -187,37 +242,67 @@ func (w *SettingsWindow) setupUI() {
 	liveCompanionPathContainer := container.NewBorder(nil, nil, nil,
 		container.NewHBox(browseLiveCompanionBtn, autoDetectLiveCompanionBtn), w.liveCompanionPath)
 
-	// 创建日志配置容器
-	logConfigContainer := container.NewHBox(
-		w.logToFile,
-		widget.NewLabel("日志等级:"),
-		w.logLevel,
+	// 创建表单
+	otherForm := widget.NewForm(
+		widget.NewFormItem("OBS配置文件路径", obsPathContainer),
+		widget.NewFormItem("直播伴侣启动路径", liveCompanionPathContainer),
 	)
 
-	// 创建配置容器
-	configCard := widget.NewCard("配置设置", "",
-		container.NewVBox(
-			widget.NewForm(
-				widget.NewFormItem("服务器地址正则", w.serverRegex),
-				widget.NewFormItem("推流码正则", w.streamKeyRegex),
-				widget.NewFormItem("OBS配置文件路径", obsPathContainer),
-				widget.NewFormItem("直播伴侣启动路径", liveCompanionPathContainer),
-				widget.NewFormItem("日志配置", logConfigContainer),
-			),
-		),
-	)
-	configCard.Resize(fyne.NewSize(600, 200))
+	// 添加说明文本
+	otherHelp := widget.NewRichTextFromMarkdown("### 路径配置说明\n\n" +
+		"* **OBS配置文件路径**：OBS Studio的配置文件路径，用于导入OBS推流设置\n" +
+		"* **直播伴侣启动路径**：抖音直播伴侣的可执行文件路径，用于快速启动直播伴侣")
 
-	// 创建按钮容器，添加恢复默认配置按钮
-	buttonContainer := container.NewHBox(
-		saveBtn,
-		resetBtn,
-		cancelBtn,
+	// 创建容器
+	return container.NewVBox(
+		otherForm,
+		layout.NewSpacer(),
+		otherHelp,
 	)
-	buttonContainer.Resize(fyne.NewSize(600, 50))
+}
 
-	// 设置内容
-	w.window.SetContent(container.NewBorder(configCard, buttonContainer, nil, nil, networkCard))
+// resetToDefaults 重置为默认设置
+func (w *SettingsWindow) resetToDefaults(alreadyCheck *[]string) {
+	dialog.ShowConfirm("确认", "确定要恢复默认配置吗？", func(ok bool) {
+		if ok {
+			// 检查并删除配置文件
+			configPath := "config/tiktok_tool_cfg.toml"
+			if _, err := os.Stat(configPath); err == nil {
+				// 配置文件在 config 目录中
+				if err := os.Remove(configPath); err != nil {
+					dialog.ShowError(fmt.Errorf("删除配置文件失败: %v", err), w.window)
+					return
+				}
+			} else {
+				// 检查当前目录
+				configPath = "tiktok_tool_cfg.toml"
+				if _, err := os.Stat(configPath); err == nil {
+					if err := os.Remove(configPath); err != nil {
+						dialog.ShowError(fmt.Errorf("删除配置文件失败: %v", err), w.window)
+						return
+					}
+				}
+			}
+
+			// 恢复默认配置
+			w.networkList.SetSelected(nil) // 清空网卡选择
+			w.serverRegex.SetText(config.DefaultConfig.ServerRegex)
+			w.streamKeyRegex.SetText(config.DefaultConfig.StreamKeyRegex)
+			w.obsConfigPath.SetText(config.DefaultConfig.OBSConfigPath)
+			w.liveCompanionPath.SetText(config.DefaultConfig.LiveCompanionPath)
+			// 恢复日志配置默认值
+			if config.DefaultConfig.LogConfig != nil {
+				w.logToFile.SetChecked(config.DefaultConfig.LogConfig.File)
+				w.logLevel.SetSelected(config.DefaultConfig.LogConfig.Level)
+			}
+			*alreadyCheck = nil // 清空已选网卡
+
+			// 更新当前设置为默认设置
+			config.SetConfig(config.DefaultConfig)
+
+			dialog.ShowInformation("成功", "已恢复默认配置", w.window)
+		}
+	}, w.window)
 }
 
 func (w *SettingsWindow) saveSettings(checks []string) {

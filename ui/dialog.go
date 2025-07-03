@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"net/url"
 	"os/exec"
 
 	"fyne.io/fyne/v2"
@@ -8,6 +9,15 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 )
+
+// parseURL 解析URL字符串
+func parseURL(urlStr string) *url.URL {
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return nil
+	}
+	return parsedURL
+}
 
 // ShowInstallDialog 显示Npcap安装对话框
 func ShowInstallDialog(window fyne.Window) {
@@ -35,16 +45,32 @@ func ShowInstallDialog(window fyne.Window) {
 
 // ShowHelpDialog 显示帮助对话框
 func ShowHelpDialog(window fyne.Window) {
+	// 创建超链接
+	repoLink := widget.NewHyperlink("🔗 访问我的GitHub仓库", parseURL("https://github.com/plutodemon/tiktok_tool"))
+
+	// 创建声明部分
+	disclaimer := widget.NewRichTextFromMarkdown("## ⚠️ 重要声明\n\n" +
+		"**本软件为开源软件，不会收取任何费用！**\n\n" +
+		"**本软件仅供学习交流使用，请勿用于商业用途！**")
+	disclaimer.Wrapping = fyne.TextWrapWord
+
+	// 创建使用说明
+	usageGuide := widget.NewRichTextFromMarkdown("## 📖 使用方法\n\n" +
+		"1. 点击 **开始抓包** 按钮\n" +
+		"2. 打开抖音直播伴侣，开始直播\n" +
+		"3. 等待自动获取推流配置\n" +
+		"4. 如需停止请点击 **停止抓包** 按钮")
+	usageGuide.Wrapping = fyne.TextWrapWord
+
+	// 创建滚动容器
 	scroll := container.NewScroll(
 		container.NewVBox(
-			widget.NewLabel("!!!声明!!!"),
-			widget.NewLabel("!!!本软件为开源软件,不会收取任何费用!!!"),
-			widget.NewLabel("!!!本软件仅供学习交流使用,请勿用于商业用途!!!"),
-			widget.NewLabel("使用方法："),
-			widget.NewLabel("1. 点击\"开始抓包\"按钮"),
-			widget.NewLabel("2. 打开抖音直播伴侣, 开始直播"),
-			widget.NewLabel("3. 等待自动获取推流配置"),
-			widget.NewLabel("4. 如需停止请点击\"停止抓包\"按钮"),
+			widget.NewSeparator(),
+			container.NewCenter(repoLink),
+			widget.NewSeparator(),
+			disclaimer,
+			widget.NewSeparator(),
+			usageGuide,
 		),
 	)
 
@@ -57,7 +83,7 @@ func ShowHelpDialog(window fyne.Window) {
 	)
 
 	helpDialog := dialog.NewCustom("使用说明", "关闭", content, window)
-	helpDialog.Resize(fyne.NewSize(370, 220))
+	helpDialog.Resize(fyne.NewSize(450, 350))
 	helpDialog.Show()
 }
 

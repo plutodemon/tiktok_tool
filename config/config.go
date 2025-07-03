@@ -5,9 +5,10 @@ import (
 	"path/filepath"
 	"sync"
 
+	"tiktok_tool/llog"
+
 	"github.com/BurntSushi/toml"
 	"github.com/google/gopacket/pcap"
-	"tiktok_tool/llog"
 )
 
 var (

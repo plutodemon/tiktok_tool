@@ -66,11 +66,6 @@ func (w *MainWindow) setupUI() {
 	w.captureBtn.Importance = widget.HighImportance
 	w.captureBtn.Resize(w.captureBtn.MinSize())
 
-	// 重启按钮
-	restartBtn := widget.NewButtonWithIcon("重启", theme.ViewRefreshIcon(), w.handleRestart)
-	restartBtn.Importance = widget.WarningImportance
-	restartBtn.Resize(restartBtn.MinSize())
-
 	// 创建固定宽度的标签
 	serverLabel := widget.NewLabel("服务器地址:")
 	streamLabel := widget.NewLabel("推 流 码 :")
@@ -82,7 +77,6 @@ func (w *MainWindow) setupUI() {
 		container.NewHBox(
 			w.liveBtn,
 			w.captureBtn,
-			restartBtn,
 		),
 	)
 
@@ -114,11 +108,16 @@ func (w *MainWindow) setupUI() {
 	importOBSBtn := widget.NewButtonWithIcon("导入OBS", theme.DocumentSaveIcon(), w.handleImportOBS)
 	importOBSBtn.Importance = widget.MediumImportance
 
+	// 重启按钮
+	restartBtn := widget.NewButtonWithIcon("重启", theme.ViewRefreshIcon(), w.handleRestart)
+	restartBtn.Resize(restartBtn.MinSize())
+
 	left := container.NewHBox(
 		widget.NewIcon(theme.InfoIcon()),
 		w.status,
 	)
 	right := container.NewHBox(
+		restartBtn,
 		helpBtn,
 		w.settingBtn,
 		importOBSBtn,
