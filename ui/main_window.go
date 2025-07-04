@@ -47,11 +47,19 @@ func (w *MainWindow) setupUI() {
 
 	// 复制按钮
 	copyServerBtn := widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
+		if w.serverAddr.Text == "" {
+			w.status.SetText("服务器地址为空")
+			return
+		}
 		w.window.Clipboard().SetContent(w.serverAddr.Text)
 		w.status.SetText("已复制服务器地址")
 	})
 
 	copyStreamBtn := widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
+		if w.streamKey.Text == "" {
+			w.status.SetText("推流码为空")
+			return
+		}
 		w.window.Clipboard().SetContent(w.streamKey.Text)
 		w.status.SetText("已复制推流码")
 	})

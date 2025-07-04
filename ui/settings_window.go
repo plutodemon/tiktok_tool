@@ -105,7 +105,7 @@ func (w *SettingsWindow) setupUI() {
 	regexTab := w.createRegexTab()
 	networkTab := w.createNetworkTab()
 	logTab := w.createLogTab()
-	otherTab := w.createOtherTab()
+	otherTab := w.createOtherTab(&alreadyCheck)
 
 	// 创建标签容器
 	tabs := container.NewAppTabs(
@@ -122,12 +122,6 @@ func (w *SettingsWindow) setupUI() {
 	})
 	saveBtn.Importance = widget.HighImportance
 
-	// 创建恢复默认配置按钮
-	resetBtn := widget.NewButtonWithIcon("恢复默认配置", theme.HistoryIcon(), func() {
-		w.resetToDefaults(&alreadyCheck)
-	})
-	resetBtn.Importance = widget.WarningImportance
-
 	cancelBtn := widget.NewButtonWithIcon("取消配置", theme.MailReplyIcon(), func() {
 		w.window.Close()
 	})
@@ -135,7 +129,6 @@ func (w *SettingsWindow) setupUI() {
 	// 创建按钮容器
 	buttonContainer := container.NewHBox(
 		saveBtn,
-		resetBtn,
 		layout.NewSpacer(),
 		cancelBtn,
 	)
@@ -213,7 +206,7 @@ func (w *SettingsWindow) createNetworkTab() fyne.CanvasObject {
 }
 
 // createOtherTab 创建其他设置标签页
-func (w *SettingsWindow) createOtherTab() fyne.CanvasObject {
+func (w *SettingsWindow) createOtherTab(alreadyCheck *[]string) fyne.CanvasObject {
 	// 创建浏览按钮
 	browseBtn := widget.NewButtonWithIcon("浏览", theme.FolderOpenIcon(), func() {
 		w.browseOBSConfig()
@@ -248,6 +241,11 @@ func (w *SettingsWindow) createOtherTab() fyne.CanvasObject {
 		widget.NewFormItem("直播伴侣启动路径", liveCompanionPathContainer),
 	)
 
+	// 创建恢复默认配置按钮
+	resetBtn := widget.NewButtonWithIcon("恢复默认配置", theme.HistoryIcon(), func() {
+		w.resetToDefaults(alreadyCheck)
+	})
+
 	// 添加说明文本
 	otherHelp := widget.NewRichTextFromMarkdown("### 路径配置说明\n\n" +
 		"* **OBS配置文件路径**：OBS Studio的配置文件路径，用于导入OBS推流设置\n" +
@@ -257,6 +255,8 @@ func (w *SettingsWindow) createOtherTab() fyne.CanvasObject {
 	return container.NewVBox(
 		otherForm,
 		layout.NewSpacer(),
+		resetBtn,
+		widget.NewSeparator(),
 		otherHelp,
 	)
 }

@@ -25,8 +25,8 @@ func ShowInstallDialog(window fyne.Window) {
 		widget.NewLabel("需要安装 Npcap 才能使用抓包功能："),
 		widget.NewLabel("1. 点击下面的按钮下载 Npcap, 选择\"Npcap 1.80 installer for Windows即可\""),
 		widget.NewButton("下载 Npcap", func() {
-			url := "https://npcap.com/#download"
-			if err := exec.Command("cmd", "/c", "start", url).Start(); err != nil {
+			_url := "https://npcap.com/#download"
+			if err := exec.Command("cmd", "/c", "start", _url).Start(); err != nil {
 				dialog.ShowError(err, window)
 			}
 		}),
@@ -46,7 +46,7 @@ func ShowInstallDialog(window fyne.Window) {
 // ShowHelpDialog 显示帮助对话框
 func ShowHelpDialog(window fyne.Window) {
 	// 创建超链接
-	repoLink := widget.NewHyperlink("🔗 访问我的GitHub仓库", parseURL("https://github.com/plutodemon/tiktok_tool"))
+	repoLink := widget.NewHyperlink("🔗 访问作者的GitHub仓库", parseURL("https://github.com/plutodemon/tiktok_tool"))
 
 	// 创建声明部分
 	disclaimer := widget.NewRichTextFromMarkdown("## ⚠️ 重要声明\n\n" +

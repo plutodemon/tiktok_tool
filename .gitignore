@@ -29,3 +29,4 @@ winres
 .idea
 output
 logs
+*.toml
