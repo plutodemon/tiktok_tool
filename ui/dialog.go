@@ -103,3 +103,36 @@ func ShowRestartConfirmDialog(window fyne.Window, onConfirm func()) {
 	)
 	confirmDialog.Show()
 }
+
+func (w *SettingsWindow) NewErrorDialog(err error) {
+	errorDialog := dialog.NewError(err, w.window)
+	errorDialog.Resize(fyne.NewSize(450, 200))
+	errorDialog.Show()
+}
+
+func (w *SettingsWindow) NewInfoDialog(title, message string) {
+	infoDialog := dialog.NewInformation(title, message, w.window)
+	infoDialog.Resize(fyne.NewSize(450, 200))
+	infoDialog.Show()
+}
+
+func (w *SettingsWindow) NewCustomDialog(title, dismiss string, content fyne.CanvasObject) *dialog.CustomDialog {
+	customDialog := dialog.NewCustom(title, dismiss, content, w.window)
+	customDialog.Resize(fyne.NewSize(450, 200))
+	customDialog.Show()
+	return customDialog
+}
+
+func (w *SettingsWindow) NewConfirmDialog(title, message string, callback func(bool)) *dialog.ConfirmDialog {
+	confirmDialog := dialog.NewConfirm(title, message, callback, w.window)
+	confirmDialog.Resize(fyne.NewSize(450, 200))
+	confirmDialog.Show()
+	return confirmDialog
+}
+
+func (w *SettingsWindow) NewCustomWithoutButtons(title string, content fyne.CanvasObject) *dialog.CustomDialog {
+	customDialog := dialog.NewCustomWithoutButtons(title, content, w.window)
+	customDialog.Resize(fyne.NewSize(450, 200))
+	customDialog.Show()
+	return customDialog
+}

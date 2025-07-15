@@ -3,6 +3,7 @@ package main
 import (
 	_ "embed"
 	"fmt"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"tiktok_tool/capture"
@@ -31,7 +32,7 @@ func main() {
 	// 设置全局panic处理
 	defer llog.HandlePanic()
 
-	myApp := app.New()
+	myApp := app.NewWithID("com.lemon_shuo.tiktok_tool")
 	myApp.SetIcon(&fyne.StaticResource{
 		StaticName:    "icon",
 		StaticContent: iconBytes,

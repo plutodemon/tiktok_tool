@@ -38,6 +38,7 @@ type Config struct {
 	StreamKeyRegex    string   `toml:"stream_key_regex"`    // 推流码正则表达式
 	OBSConfigPath     string   `toml:"obs_config_path"`     // OBS配置文件路径
 	LiveCompanionPath string   `toml:"live_companion_path"` // 直播伴侣启动路径
+	PluginScriptPath  string   `toml:"plugin_script_path"`  // 自动化插件脚本路径
 
 	// 日志设置
 	LogConfig *llog.LogSetting `toml:"log"`
@@ -50,6 +51,7 @@ var DefaultConfig = Config{
 	StreamKeyRegex:    `(stream-\d+\?expire=\d+&sign=[a-f0-9]+(?:&volcSecret=[a-f0-9]+&volcTime=\d+)?)`,
 	OBSConfigPath:     "", // 默认为空，需要用户手动配置
 	LiveCompanionPath: "", // 默认为空，需要用户手动配置
+	PluginScriptPath:  "", // 默认为空，需要用户手动配置
 	LogConfig:         llog.DefaultConfig,
 }
 

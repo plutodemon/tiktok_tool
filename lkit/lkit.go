@@ -3,6 +3,7 @@ package lkit
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -28,4 +29,9 @@ func GetAddr(host, port any) string {
 // GetNowUnix 秒级时间戳
 func GetNowUnix() int64 {
 	return time.Now().Unix()
+}
+
+// GetPathDir 获得全路径下的目录
+func GetPathDir(path string) string {
+	return filepath.Dir(filepath.Clean(filepath.FromSlash(path)))
 }
