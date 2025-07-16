@@ -1,10 +1,16 @@
 package ui
 
 import (
+	_ "embed"
+
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"tiktok_tool/capture"
 )
 
 type MainWindow struct {
@@ -13,9 +19,7 @@ type MainWindow struct {
 	status     *widget.Label
 	serverAddr *widget.Entry
 	streamKey  *widget.Entry
-	liveBtn    *widget.Button
 	captureBtn *widget.Button
-	settingBtn *widget.Button
 }
 
 func (w *MainWindow) resetCaptureBtn() {
@@ -24,16 +28,38 @@ func (w *MainWindow) resetCaptureBtn() {
 	w.captureBtn.SetIcon(theme.MediaPlayIcon())
 }
 
-func NewMainWindow(app fyne.App, window fyne.Window) *MainWindow {
+//go:embed tiktok.png
+var iconBytes []byte
+
+func NewMainWindow() {
+	myApp := app.NewWithID("com.lemon.tiktok_tool")
+	myApp.SetIcon(&fyne.StaticResource{
+		StaticName:    "icon",
+		StaticContent: iconBytes,
+	})
+	window := myApp.NewWindow("抖音直播推流配置抓取")
+	window.Resize(fyne.NewSize(600, 170))
+	window.SetFixedSize(true)
+	window.SetMaster()
+	window.CenterOnScreen()
+
+	if !capture.CheckNpcapInstalled() {
+		ShowInstallDialog(window)
+		window.ShowAndRun()
+		return
+	}
+
 	w := &MainWindow{
 		window:     window,
-		app:        app,
+		app:        myApp,
 		status:     widget.NewLabel("等待开始抓包..."),
 		serverAddr: widget.NewEntry(),
 		streamKey:  widget.NewEntry(),
 	}
+
 	w.setupUI()
-	return w
+	window.ShowAndRun()
+	return
 }
 
 func (w *MainWindow) setupUI() {
@@ -65,90 +91,59 @@ func (w *MainWindow) setupUI() {
 	})
 
 	// 启动直播伴侣按钮
-	w.liveBtn = widget.NewButtonWithIcon("启动直播伴侣", theme.MediaPlayIcon(), w.handleStartLiveCompanion)
-	w.liveBtn.Importance = widget.SuccessImportance
-	w.liveBtn.Resize(w.liveBtn.MinSize())
+	liveBtn := widget.NewButtonWithIcon("启动直播伴侣", theme.MediaPlayIcon(), w.handleStartLiveCompanion)
+
+	// 导入OBS配置按钮
+	importOBSBtn := widget.NewButtonWithIcon("导入OBS", theme.DocumentSaveIcon(), w.handleImportOBS)
 
 	// 抓包按钮
 	w.captureBtn = widget.NewButtonWithIcon("开始抓包", theme.MediaPlayIcon(), w.handleCapture)
 	w.captureBtn.Importance = widget.HighImportance
-	w.captureBtn.Resize(w.captureBtn.MinSize())
 
-	// 创建固定宽度的标签
-	serverLabel := widget.NewLabel("服务器地址:")
-	streamLabel := widget.NewLabel("推 流 码 :")
+	serverContainer := container.NewBorder(nil, nil, nil, copyServerBtn, w.serverAddr)
+	streamContainer := container.NewBorder(nil, nil, nil, copyStreamBtn, w.streamKey)
+	actionContainer := container.New(layout.NewGridLayout(3), liveBtn, w.captureBtn, importOBSBtn)
 
-	// 创建分组：推流配置
-	configTitle := container.NewBorder(
-		nil, nil,
-		widget.NewRichTextFromMarkdown("## 推流配置"),
-		container.NewHBox(
-			w.liveBtn,
-			w.captureBtn,
-		),
+	mainForm := widget.NewForm(
+		widget.NewFormItem("服务器地址", serverContainer),
+		widget.NewFormItem("推流码", streamContainer),
 	)
 
-	configGroup := widget.NewCard("", "", container.NewVBox(
-		configTitle,
-		container.NewBorder(nil, nil, serverLabel, copyServerBtn,
-			w.serverAddr,
-		),
-		widget.NewSeparator(),
-		container.NewBorder(nil, nil, streamLabel, copyStreamBtn,
-			w.streamKey,
-		),
-	))
+	// 重启按钮
+	restartBtn := widget.NewButtonWithIcon("重启", theme.ViewRefreshIcon(), w.handleRestart)
+	restartBtn.Importance = widget.LowImportance
 
 	// 创建使用说明按钮
 	helpBtn := widget.NewButtonWithIcon("帮助", theme.HelpIcon(), func() {
 		ShowHelpDialog(w.window)
 	})
+	helpBtn.Importance = widget.LowImportance
 
 	// 创建设置按钮
-	w.settingBtn = widget.NewButtonWithIcon("设置", theme.SettingsIcon(), func() {
+	settingBtn := widget.NewButtonWithIcon("设置", theme.SettingsIcon(), func() {
 		ShowSettingsWindow(w.app, func() {
 			w.window.Show()
 		})
 		w.window.Hide()
 	})
+	settingBtn.Importance = widget.LowImportance
 
-	// 导入OBS配置按钮
-	importOBSBtn := widget.NewButtonWithIcon("导入OBS", theme.DocumentSaveIcon(), w.handleImportOBS)
-	importOBSBtn.Importance = widget.MediumImportance
-
-	// 重启按钮
-	restartBtn := widget.NewButtonWithIcon("重启", theme.ViewRefreshIcon(), w.handleRestart)
-	restartBtn.Resize(restartBtn.MinSize())
-
-	left := container.NewHBox(
+	statusContainer := container.NewHBox(
 		widget.NewIcon(theme.InfoIcon()),
 		w.status,
-	)
-	right := container.NewHBox(
+		layout.NewSpacer(),
 		restartBtn,
 		helpBtn,
-		w.settingBtn,
-		importOBSBtn,
-	)
-
-	// 创建状态栏
-	statusBar := container.NewBorder(
-		nil,
-		nil,
-		left,
-		right,
+		settingBtn,
 	)
 
 	content := container.NewVBox(
-		configGroup,
+		mainForm,
+		actionContainer,
+		layout.NewSpacer(),
 		widget.NewSeparator(),
-		statusBar,
+		statusContainer,
 	)
 
-	// 添加内边距
-	paddedContent := container.NewPadded(content)
-
-	w.window.SetContent(paddedContent)
-	w.window.Resize(fyne.NewSize(600, 200))
-	w.window.CenterOnScreen()
+	w.window.SetContent(container.NewPadded(content))
 }

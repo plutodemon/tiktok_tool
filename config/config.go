@@ -48,7 +48,7 @@ type Config struct {
 var DefaultConfig = Config{
 	NetworkInterfaces: []string{},
 	ServerRegex:       `(rtmp://push-rtmp-[a-zA-Z0-9\-]+\.douyincdn\.com/thirdgame)`,
-	StreamKeyRegex:    `(stream-\d+\?expire=\d+&sign=[a-f0-9]+(?:&volcSecret=[a-f0-9]+&volcTime=\d+)?)`,
+	StreamKeyRegex:    `"(stream-\d+\?(?:[^&]+=[^&]*&)*expire=\d{10}&sign=[^&]+)"`,
 	OBSConfigPath:     "", // 默认为空，需要用户手动配置
 	LiveCompanionPath: "", // 默认为空，需要用户手动配置
 	PluginScriptPath:  "", // 默认为空，需要用户手动配置

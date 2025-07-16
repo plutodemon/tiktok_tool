@@ -17,6 +17,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/google/gopacket/pcap"
+
 	"tiktok_tool/config"
 	"tiktok_tool/lkit"
 )
@@ -92,16 +93,19 @@ func (w *SettingsWindow) setupUI() {
 	w.obsConfigPath = widget.NewEntry()
 	w.obsConfigPath.SetText(config.GetConfig().OBSConfigPath)
 	w.obsConfigPath.SetPlaceHolder("请选择OBS配置文件路径 (service.json)")
+	w.obsConfigPath.Disable()
 
 	// 创建直播伴侣路径输入框
 	w.liveCompanionPath = widget.NewEntry()
 	w.liveCompanionPath.SetText(config.GetConfig().LiveCompanionPath)
 	w.liveCompanionPath.SetPlaceHolder("请选择直播伴侣启动路径 (直播伴侣 Launcher.exe)")
+	w.liveCompanionPath.Disable()
 
 	// 创建自动化插件脚本路径输入框
 	w.pluginScriptPath = widget.NewEntry()
 	w.pluginScriptPath.SetText(config.GetConfig().PluginScriptPath)
 	w.pluginScriptPath.SetPlaceHolder("请选择自动化插件脚本路径 (auto.exe)")
+	w.pluginScriptPath.Disable()
 
 	// 创建日志配置控件
 	currentConfig := config.GetConfig()
@@ -145,9 +149,9 @@ func (w *SettingsWindow) setupUI() {
 	})
 
 	// 创建按钮容器
-	buttonContainer := container.NewHBox(
+	buttonContainer := container.New(
+		layout.NewGridLayout(2),
 		saveBtn,
-		layout.NewSpacer(),
 		cancelBtn,
 	)
 
@@ -220,7 +224,11 @@ func (w *SettingsWindow) createScriptTab() fyne.CanvasObject {
 	downloadBtn := widget.NewButtonWithIcon("下载auto.exe", theme.DownloadIcon(), func() {
 		w.downloadAutoExe()
 	})
-	downloadBtn.Importance = widget.MediumImportance
+	if config.GetConfig().PluginScriptPath != "" {
+		downloadBtn.Disable()
+	} else {
+		downloadBtn.Importance = widget.SuccessImportance
+	}
 
 	// 创建清空插件按钮
 	clearBtn := widget.NewButtonWithIcon("清空插件", theme.DeleteIcon(), func() {
@@ -329,9 +337,10 @@ func (w *SettingsWindow) createOtherTab(alreadyCheck *[]string) fyne.CanvasObjec
 	return container.NewVBox(
 		otherForm,
 		layout.NewSpacer(),
+		otherHelp,
+		widget.NewSeparator(),
 		resetBtn,
 		widget.NewSeparator(),
-		otherHelp,
 	)
 }
 
