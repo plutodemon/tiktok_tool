@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -122,7 +123,7 @@ func (w *MainWindow) handleImportOBS() {
 			}
 
 			// 写入OBS配置
-			err := config.WriteOBSConfig(obsConfigPath, serverAddr, streamKey)
+			err := WriteOBSConfig(obsConfigPath, serverAddr, streamKey)
 			if err != nil {
 				dialog.ShowError(fmt.Errorf("导入OBS配置失败：%v", err), w.window)
 				return
@@ -131,6 +132,56 @@ func (w *MainWindow) handleImportOBS() {
 			w.status.SetText("OBS配置导入成功")
 			dialog.ShowInformation("成功", "推流配置已成功导入到OBS！", w.window)
 		}, w.window)
+}
+
+// WriteOBSConfig 将推流配置写入OBS配置文件(service.json)
+func WriteOBSConfig(configPath, server, key string) error {
+	// 检查文件是否存在
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		return fmt.Errorf("配置文件不存在: %s", configPath)
+	}
+
+	// 读取JSON配置文件
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("读取配置文件失败: %v", err)
+	}
+
+	// 解析JSON
+	var cfgMap map[string]interface{}
+	err = json.Unmarshal(content, &cfgMap)
+	if err != nil {
+		return fmt.Errorf("解析JSON配置文件失败: %v", err)
+	}
+
+	// 确保settings字段存在
+	if cfgMap["settings"] == nil {
+		cfgMap["settings"] = make(map[string]interface{})
+	}
+
+	// 获取settings对象
+	settings, ok := cfgMap["settings"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("配置文件格式错误: settings字段不是对象")
+	}
+
+	// 更新server和key字段
+	settings["server"] = server
+	settings["key"] = key
+
+	// 将修改后的配置转换回JSON
+	newContent, err := json.MarshalIndent(cfgMap, "", "  ")
+	if err != nil {
+		return fmt.Errorf("序列化JSON配置失败: %v", err)
+	}
+
+	// 写回文件
+	err = os.WriteFile(configPath, newContent, 0644)
+	if err != nil {
+		return fmt.Errorf("写入配置文件失败: %v", err)
+	}
+
+	return nil
 }
 
 // handleStartLiveCompanion 处理启动直播伴侣

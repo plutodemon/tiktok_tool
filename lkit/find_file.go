@@ -1,4 +1,4 @@
-package config
+package lkit
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"time"
 	"unsafe"
 
-	"tiktok_tool/lkit"
 	"tiktok_tool/llog"
 )
 
@@ -29,7 +28,7 @@ func FindFileInAllDrives(fileName string) string {
 
 	// 为每个盘符启动一个goroutine进行搜索
 	for _, drive := range drives {
-		lkit.SafeGo(func() {
+		SafeGo(func() {
 			if result := searchFileInDrive(ctx, drive, fileName); result != "" {
 				select {
 				case resultChan <- result:
@@ -110,6 +109,7 @@ func searchFileInDrive(ctx context.Context, searchPath, fileName string) string 
 		if !d.IsDir() && strings.EqualFold(d.Name(), fileName) {
 			llog.Info("找到文件：", path)
 			result = path
+			return filepath.SkipAll // 找到文件后立即停止遍历
 		}
 		return nil
 	})

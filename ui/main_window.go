@@ -28,7 +28,7 @@ func (w *MainWindow) resetCaptureBtn() {
 	w.captureBtn.SetIcon(theme.MediaPlayIcon())
 }
 
-//go:embed tiktok.png
+//go:embed img/tiktok.png
 var iconBytes []byte
 
 func NewMainWindow() {
@@ -38,7 +38,7 @@ func NewMainWindow() {
 		StaticContent: iconBytes,
 	})
 	window := myApp.NewWindow("抖音直播推流配置抓取")
-	window.Resize(fyne.NewSize(600, 170))
+	window.Resize(fyne.NewSize(600, 180))
 	window.SetFixedSize(true)
 	window.SetMaster()
 	window.CenterOnScreen()
