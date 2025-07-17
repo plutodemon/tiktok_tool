@@ -19,11 +19,27 @@ import (
 
 // createOtherTab 创建其他设置标签页
 func (w *SettingsWindow) createOtherTab(alreadyCheck *[]string) fyne.CanvasObject {
-	// 创建浏览按钮
+	// 创建OBS启动路径浏览按钮
+	browseOBSLaunchBtn := widget.NewButtonWithIcon("浏览", theme.FolderOpenIcon(), w.browseOBSLaunchConfig)
+
+	// 创建OBS启动路径自动检测按钮
+	autoDetectOBSLaunchBtn := widget.NewButtonWithIcon("自动检测", theme.SearchIcon(), w.autoDetectOBSLaunchConfig)
+
+	// 创建清空OBS启动路径按钮
+	clearOBSLaunchBtn := widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
+		w.obsLaunchPath.SetText("")
+	})
+
+	// 创建OBS配置文件浏览按钮
 	browseBtn := widget.NewButtonWithIcon("浏览", theme.FolderOpenIcon(), w.browseOBSConfig)
 
-	// 创建自动检测按钮
+	// 创建OBS配置文件自动检测按钮
 	autoDetectBtn := widget.NewButtonWithIcon("自动检测", theme.SearchIcon(), w.autoDetectOBSConfig)
+
+	// 创建清空OBS配置文件路径按钮
+	clearOBSConfigBtn := widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
+		w.obsConfigPath.SetText("")
+	})
 
 	// 创建直播伴侣浏览按钮
 	browseLiveCompanionBtn := widget.NewButtonWithIcon("浏览", theme.FolderOpenIcon(), w.browseLiveCompanionConfig)
@@ -31,16 +47,26 @@ func (w *SettingsWindow) createOtherTab(alreadyCheck *[]string) fyne.CanvasObjec
 	// 创建直播伴侣自动检测按钮
 	autoDetectLiveCompanionBtn := widget.NewButtonWithIcon("自动检测", theme.SearchIcon(), w.autoDetectLiveCompanionConfig)
 
+	// 创建清空直播伴侣路径按钮
+	clearLiveCompanionBtn := widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
+		w.liveCompanionPath.SetText("")
+	})
+
+	// 创建OBS启动路径容器
+	obsLaunchPathContainer := container.NewBorder(nil, nil, nil,
+		container.NewHBox(browseOBSLaunchBtn, autoDetectOBSLaunchBtn, clearOBSLaunchBtn), w.obsLaunchPath)
+
 	// 创建OBS配置路径容器
 	obsPathContainer := container.NewBorder(nil, nil, nil,
-		container.NewHBox(browseBtn, autoDetectBtn), w.obsConfigPath)
+		container.NewHBox(browseBtn, autoDetectBtn, clearOBSConfigBtn), w.obsConfigPath)
 
 	// 创建直播伴侣路径容器
 	liveCompanionPathContainer := container.NewBorder(nil, nil, nil,
-		container.NewHBox(browseLiveCompanionBtn, autoDetectLiveCompanionBtn), w.liveCompanionPath)
+		container.NewHBox(browseLiveCompanionBtn, autoDetectLiveCompanionBtn, clearLiveCompanionBtn), w.liveCompanionPath)
 
 	// 创建表单
 	otherForm := widget.NewForm(
+		widget.NewFormItem("OBS启动路径", obsLaunchPathContainer),
 		widget.NewFormItem("OBS配置文件路径", obsPathContainer),
 		widget.NewFormItem("直播伴侣启动路径", liveCompanionPathContainer),
 	)
@@ -52,6 +78,7 @@ func (w *SettingsWindow) createOtherTab(alreadyCheck *[]string) fyne.CanvasObjec
 
 	// 添加说明文本
 	otherHelp := widget.NewRichTextFromMarkdown("### 路径配置说明\n\n" +
+		"* **OBS启动路径**：OBS Studio的可执行文件路径，用于快速启动OBS\n" +
 		"* **OBS配置文件路径**：OBS Studio的配置文件路径，用于导入OBS推流设置\n" +
 		"* **直播伴侣启动路径**：抖音直播伴侣的可执行文件路径，用于快速启动直播伴侣")
 
@@ -69,45 +96,45 @@ func (w *SettingsWindow) createOtherTab(alreadyCheck *[]string) fyne.CanvasObjec
 // resetToDefaults 重置为默认设置
 func (w *SettingsWindow) resetToDefaults(alreadyCheck *[]string) {
 	w.NewConfirmDialog("确认", "确定要恢复默认配置吗？", func(ok bool) {
-		if ok {
-			// 检查并删除配置文件
-			configPath := "config/tiktok_tool_cfg.toml"
+		if !ok {
+			return
+		}
+		// 检查并删除配置文件
+		configPath := "config/tiktok_tool_cfg.toml"
+		if _, err := os.Stat(configPath); err == nil {
+			// 配置文件在 config 目录中
+			if err := os.Remove(configPath); err != nil {
+				w.NewErrorDialog(fmt.Errorf("删除配置文件失败: %v", err))
+				return
+			}
+		} else {
+			// 检查当前目录
+			configPath = "tiktok_tool_cfg.toml"
 			if _, err := os.Stat(configPath); err == nil {
-				// 配置文件在 config 目录中
 				if err := os.Remove(configPath); err != nil {
 					w.NewErrorDialog(fmt.Errorf("删除配置文件失败: %v", err))
 					return
 				}
-			} else {
-				// 检查当前目录
-				configPath = "tiktok_tool_cfg.toml"
-				if _, err := os.Stat(configPath); err == nil {
-					if err := os.Remove(configPath); err != nil {
-						w.NewErrorDialog(fmt.Errorf("删除配置文件失败: %v", err))
-						return
-					}
-				}
 			}
-
-			// 恢复默认配置
-			w.networkList.SetSelected(nil) // 清空网卡选择
-			w.serverRegex.SetText(config.DefaultConfig.ServerRegex)
-			w.streamKeyRegex.SetText(config.DefaultConfig.StreamKeyRegex)
-			w.obsConfigPath.SetText(config.DefaultConfig.OBSConfigPath)
-			w.liveCompanionPath.SetText(config.DefaultConfig.LiveCompanionPath)
-			w.pluginScriptPath.SetText(config.DefaultConfig.PluginScriptPath)
-			// 恢复日志配置默认值
-			if config.DefaultConfig.LogConfig != nil {
-				w.logToFile.SetChecked(config.DefaultConfig.LogConfig.File)
-				w.logLevel.SetSelected(config.DefaultConfig.LogConfig.Level)
-			}
-			*alreadyCheck = nil // 清空已选网卡
-
-			// 更新当前设置为默认设置
-			config.SetConfig(config.DefaultConfig)
-
-			w.NewInfoDialog("成功", "已恢复默认配置")
 		}
+
+		// 恢复默认配置
+		w.networkList.SetSelected(nil) // 清空网卡选择
+		w.serverRegex.SetText(config.DefaultConfig.ServerRegex)
+		w.streamKeyRegex.SetText(config.DefaultConfig.StreamKeyRegex)
+		w.obsLaunchPath.SetText(config.DefaultConfig.OBSLaunchPath)
+		w.obsConfigPath.SetText(config.DefaultConfig.OBSConfigPath)
+		w.liveCompanionPath.SetText(config.DefaultConfig.LiveCompanionPath)
+		w.pluginScriptPath.SetText(config.DefaultConfig.PluginScriptPath)
+		// 恢复日志配置默认值
+		if config.DefaultConfig.LogConfig != nil {
+			w.logToFile.SetChecked(config.DefaultConfig.LogConfig.File)
+			w.logLevel.SetSelected(config.DefaultConfig.LogConfig.Level)
+		}
+		*alreadyCheck = nil // 清空已选网卡
+
+		w.close()
+		w.saveCallback("已恢复默认配置，请重启软件以应用更改")
 	})
 }
 
@@ -253,5 +280,62 @@ func (w *SettingsWindow) autoDetectLiveCompanionConfig() {
 		}
 		w.liveCompanionPath.SetText(result)
 		w.NewInfoDialog("检测成功", fmt.Sprintf("已自动检测到直播伴侣启动路径：\n%s", result))
+	}
+}
+
+// browseOBSLaunchConfig 浏览选择OBS启动文件
+func (w *SettingsWindow) browseOBSLaunchConfig() {
+	fileDialog := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+		if reader == nil {
+			return
+		}
+		defer reader.Close()
+
+		filePath := reader.URI().Path()
+		w.obsLaunchPath.SetText(filePath)
+	}, w.window)
+
+	// 设置文件过滤器
+	filter := storage.NewExtensionFileFilter([]string{".exe"})
+	fileDialog.SetFilter(filter)
+	fileDialog.SetConfirmText("确定选择")
+	fileDialog.SetDismissText("取消选择")
+
+	if path := config.GetConfig().OBSLaunchPath; path != "" {
+		pathDir := lkit.GetPathDir(path)
+		if _, err := os.Stat(pathDir); err == nil {
+			if uri := storage.NewFileURI(pathDir); uri != nil {
+				if lister, err := storage.ListerForURI(uri); err == nil {
+					fileDialog.SetLocation(lister)
+				}
+			}
+		}
+	}
+
+	fileDialog.Show()
+}
+
+// autoDetectOBSLaunchConfig 自动检测OBS启动路径
+func (w *SettingsWindow) autoDetectOBSLaunchConfig() {
+	progressDialog := w.NewCustomWithoutButtons(
+		"搜索中",
+		container.NewCenter(widget.NewLabel("正在搜索OBS启动路径，请稍候...")),
+	)
+
+	resultChan := make(chan string)
+
+	lkit.SafeGo(func() {
+		resultChan <- lkit.FindFileInAllDrives("obs64.exe")
+	})
+
+	select {
+	case result := <-resultChan:
+		progressDialog.Hide()
+		if result == "" {
+			w.NewInfoDialog("检测结果", "未找到OBS启动路径。请尝试手动浏览选择。")
+			return
+		}
+		w.obsLaunchPath.SetText(result)
+		w.NewInfoDialog("检测成功", fmt.Sprintf("已自动检测到OBS启动路径：\n%s", result))
 	}
 }

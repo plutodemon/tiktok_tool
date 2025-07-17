@@ -14,7 +14,9 @@ import (
 )
 
 type SettingsWindow struct {
-	window fyne.Window
+	window        fyne.Window
+	closeCallback func()
+	saveCallback  func(string)
 	// 网卡
 	networkList     *widget.CheckGroup
 	selectedDevices []string
@@ -24,32 +26,44 @@ type SettingsWindow struct {
 	streamKeyRegex *widget.Entry
 
 	// 路径
+	obsLaunchPath     *widget.Entry
 	obsConfigPath     *widget.Entry
 	liveCompanionPath *widget.Entry
 
 	// 脚本路径
-	pluginScriptPath *widget.Entry
+	pluginScriptPath        *widget.Entry
+	pluginScriptDownloadBtn *widget.Button
 
 	// 日志配置
 	logToFile *widget.Check
 	logLevel  *widget.Select
 }
 
-func ShowSettingsWindow(parent fyne.App, closeCallback func()) {
+func ShowSettingsWindow(parent fyne.App, closeCallback func(), saveCallback func(string)) {
 	// 创建设置窗口
 	settingsWindow := parent.NewWindow("设置")
 	settingsWindow.Resize(fyne.NewSize(600, 350))
 	settingsWindow.SetFixedSize(true)
 	settingsWindow.CenterOnScreen()
-	settingsWindow.SetOnClosed(closeCallback)
 
 	sw := &SettingsWindow{
 		window:          settingsWindow,
+		closeCallback:   closeCallback,
+		saveCallback:    saveCallback,
 		selectedDevices: config.GetConfig().NetworkInterfaces,
 	}
 
+	settingsWindow.SetCloseIntercept(func() {
+		sw.close()
+	})
+
 	sw.setupUI()
 	settingsWindow.Show()
+}
+
+func (w *SettingsWindow) close() {
+	w.window.Close()
+	w.closeCallback()
 }
 
 // setupUI 设置用户界面
@@ -80,6 +94,12 @@ func (w *SettingsWindow) setupUI() {
 	w.streamKeyRegex.Wrapping = fyne.TextWrapBreak
 	w.streamKeyRegex.Resize(fyne.NewSize(w.streamKeyRegex.Size().Width, 80))
 
+	// 创建OBS启动路径输入框
+	w.obsLaunchPath = widget.NewEntry()
+	w.obsLaunchPath.SetText(config.GetConfig().OBSLaunchPath)
+	w.obsLaunchPath.SetPlaceHolder("请选择OBS启动路径 (obs64.exe)")
+	w.obsLaunchPath.Disable()
+
 	// 创建OBS配置路径输入框
 	w.obsConfigPath = widget.NewEntry()
 	w.obsConfigPath.SetText(config.GetConfig().OBSConfigPath)
@@ -97,6 +117,9 @@ func (w *SettingsWindow) setupUI() {
 	w.pluginScriptPath.SetText(config.GetConfig().PluginScriptPath)
 	w.pluginScriptPath.SetPlaceHolder("请选择自动化插件脚本路径 (auto.exe)")
 	w.pluginScriptPath.Disable()
+
+	// 创建下载按钮
+	w.pluginScriptDownloadBtn = widget.NewButtonWithIcon("下载auto.exe", theme.DownloadIcon(), w.downloadAutoExe)
 
 	// 创建日志配置控件
 	currentConfig := config.GetConfig()
@@ -136,7 +159,7 @@ func (w *SettingsWindow) setupUI() {
 	saveBtn.Importance = widget.HighImportance
 
 	cancelBtn := widget.NewButtonWithIcon("取消配置", theme.MailReplyIcon(), func() {
-		w.window.Close()
+		w.close()
 	})
 
 	// 创建按钮容器
@@ -168,6 +191,7 @@ func (w *SettingsWindow) saveSettings(checks []string) {
 		NetworkInterfaces: checks,
 		ServerRegex:       strings.TrimSpace(w.serverRegex.Text),
 		StreamKeyRegex:    strings.TrimSpace(w.streamKeyRegex.Text),
+		OBSLaunchPath:     strings.TrimSpace(w.obsLaunchPath.Text),
 		OBSConfigPath:     strings.TrimSpace(w.obsConfigPath.Text),
 		LiveCompanionPath: strings.TrimSpace(w.liveCompanionPath.Text),
 		PluginScriptPath:  strings.TrimSpace(w.pluginScriptPath.Text),
@@ -180,9 +204,6 @@ func (w *SettingsWindow) saveSettings(checks []string) {
 		return
 	}
 
-	// 更新当前设置
-	config.SetConfig(newSettings)
-
-	w.NewInfoDialog("保存成功", "设置已保存，请重启软件以应用更改")
-	w.window.Close()
+	w.close()
+	w.saveCallback("设置已保存，请重启软件以应用更改")
 }

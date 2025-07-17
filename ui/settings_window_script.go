@@ -29,12 +29,19 @@ func (w *SettingsWindow) createScriptTab() fyne.CanvasObject {
 	// 创建检测插件按钮
 	detectBtn := widget.NewButtonWithIcon("检测插件", theme.SearchIcon(), w.detectPlugin)
 
+	// 创建清空插件脚本路径按钮
+	clearScriptBtn := widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
+		w.pluginScriptDownloadBtn.Enable()
+		w.pluginScriptDownloadBtn.Importance = widget.SuccessImportance
+		w.pluginScriptDownloadBtn.Refresh()
+		w.pluginScriptPath.SetText("")
+	})
+
 	// 创建下载按钮
-	downloadBtn := widget.NewButtonWithIcon("下载auto.exe", theme.DownloadIcon(), w.downloadAutoExe)
 	if config.GetConfig().PluginScriptPath != "" {
-		downloadBtn.Disable()
+		w.pluginScriptDownloadBtn.Disable()
 	} else {
-		downloadBtn.Importance = widget.SuccessImportance
+		w.pluginScriptDownloadBtn.Importance = widget.SuccessImportance
 	}
 
 	// 创建清空插件按钮
@@ -43,12 +50,12 @@ func (w *SettingsWindow) createScriptTab() fyne.CanvasObject {
 
 	// 创建插件脚本路径容器
 	pluginScriptPathContainer := container.NewBorder(nil, nil, nil,
-		container.NewHBox(browsePluginScriptBtn, detectBtn), w.pluginScriptPath)
+		container.NewHBox(browsePluginScriptBtn, detectBtn, clearScriptBtn), w.pluginScriptPath)
 
 	// 创建插件管理按钮容器
 	pluginManageContainer := container.New(
 		layout.NewGridLayout(2),
-		downloadBtn,
+		w.pluginScriptDownloadBtn,
 		clearBtn,
 	)
 
@@ -106,6 +113,8 @@ func (w *SettingsWindow) detectPlugin() {
 				result.WriteString(fmt.Sprintf("📄 %s\n", file.Name()))
 			}
 			if strings.EqualFold(file.Name(), "auto.exe") {
+				w.pluginScriptDownloadBtn.Disable()
+				w.pluginScriptDownloadBtn.Refresh()
 				w.pluginScriptPath.SetText(filepath.Join(pluginDir, file.Name()))
 			}
 		}
@@ -139,6 +148,9 @@ func (w *SettingsWindow) clearPlugin() {
 			}
 
 			// 清空插件脚本路径
+			w.pluginScriptDownloadBtn.Enable()
+			w.pluginScriptDownloadBtn.Importance = widget.SuccessImportance
+			w.pluginScriptDownloadBtn.Refresh()
 			w.pluginScriptPath.SetText("")
 
 			w.NewInfoDialog("清空结果", "plugin目录已成功删除")
@@ -151,7 +163,7 @@ func (w *SettingsWindow) downloadAutoExe() {
 	// 创建进度对话框
 	progressLabel := widget.NewLabel("准备下载...")
 	progressBar := widget.NewProgressBar()
-	progressDialog := w.NewCustomDialog("下载auto.exe", "取消", container.NewVBox(
+	progressDialog := w.NewCustomWithoutButtons("下载auto.exe", container.NewVBox(
 		progressLabel,
 		progressBar,
 	))
@@ -211,6 +223,8 @@ func (w *SettingsWindow) downloadAutoExe() {
 		progressDialog.Hide()
 
 		// 自动设置路径
+		w.pluginScriptDownloadBtn.Disable()
+		w.pluginScriptDownloadBtn.Refresh()
 		w.pluginScriptPath.SetText(filePath)
 
 		// 显示成功消息
@@ -227,6 +241,8 @@ func (w *SettingsWindow) browsePluginScriptConfig() {
 		defer reader.Close()
 
 		filePath := reader.URI().Path()
+		w.pluginScriptDownloadBtn.Disable()
+		w.pluginScriptDownloadBtn.Refresh()
 		w.pluginScriptPath.SetText(filePath)
 	}, w.window)
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -14,6 +15,7 @@ import (
 
 	"tiktok_tool/capture"
 	"tiktok_tool/config"
+	"tiktok_tool/lkit"
 	"tiktok_tool/llog"
 )
 
@@ -27,6 +29,9 @@ func (w *MainWindow) handleCapture() {
 		w.captureBtn.SetText("停止抓包")
 		w.captureBtn.Importance = widget.DangerImportance
 		w.captureBtn.SetIcon(theme.MediaPauseIcon())
+
+		w.restartBtn.Disable()
+		w.settingBtn.Disable()
 
 		// 清空数据
 		w.serverAddr.SetText("")
@@ -73,27 +78,25 @@ func (w *MainWindow) handleCapture() {
 	}
 }
 
-func (w *MainWindow) handleRestart() {
-	ShowRestartConfirmDialog(w.window, func() {
-		if config.IsCapturing {
-			capture.StopCapturing()
-		}
+func (w *MainWindow) restartApp() {
+	if config.IsCapturing {
+		capture.StopCapturing()
+	}
 
-		exe, err := os.Executable()
-		if err != nil {
-			dialog.ShowError(err, w.window)
-			return
-		}
+	exe, err := os.Executable()
+	if err != nil {
+		dialog.ShowError(err, w.window)
+		return
+	}
 
-		cmd := exec.Command(exe)
-		err = cmd.Start()
-		if err != nil {
-			dialog.ShowError(err, w.window)
-			return
-		}
+	cmd := exec.Command(exe)
+	err = cmd.Start()
+	if err != nil {
+		dialog.ShowError(err, w.window)
+		return
+	}
 
-		w.app.Quit()
-	})
+	w.app.Quit()
 }
 
 // handleImportOBS 处理导入OBS配置
@@ -199,30 +202,73 @@ func (w *MainWindow) handleStartLiveCompanion() {
 		return
 	}
 
-	// 显示确认对话框，提醒用户需要管理员权限
-	dialog.ShowConfirm("管理员权限确认",
-		"启动直播伴侣需要管理员权限，系统将弹出UAC提示，请点击'是'以继续。\n\n是否继续启动？",
-		func(confirmed bool) {
-			if !confirmed {
-				return
-			}
+	// 检查当前权限状态
+	if lkit.IsAdmin {
+		// 已经是管理员权限，直接启动
+		cmd := exec.Command(liveCompanionPath)
+		err := cmd.Start()
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("启动直播伴侣失败：%v", err), w.window)
+			return
+		}
+		w.status.SetText("直播伴侣已启动（管理员权限）")
+	} else {
+		// 普通用户权限，显示确认对话框并以管理员权限启动
+		confirmDialog := *w.NewConfirmDialog("管理员权限确认",
+			"启动直播伴侣需要管理员权限，系统将弹出UAC提示\n是否继续启动？",
+			func(confirmed bool) {
+				if !confirmed {
+					return
+				}
 
-			// 使用PowerShell以管理员权限启动直播伴侣
-			// 构建PowerShell命令：Start-Process -FilePath "路径" -Verb RunAs
-			powershellCmd := fmt.Sprintf("Start-Process -FilePath '%s' -Verb RunAs", liveCompanionPath)
-			cmd := exec.Command("powershell", "-Command", powershellCmd)
+				// 使用PowerShell以管理员权限启动直播伴侣
+				powershellCmd := fmt.Sprintf("Start-Process -FilePath '%s' -Verb RunAs", liveCompanionPath)
+				cmd := exec.Command("powershell", "-Command", powershellCmd)
 
-			// 隐藏PowerShell窗口
-			cmd.SysProcAttr = &syscall.SysProcAttr{
-				HideWindow: true,
-			}
+				// 隐藏PowerShell窗口
+				cmd.SysProcAttr = &syscall.SysProcAttr{
+					HideWindow: true,
+				}
 
-			err := cmd.Start()
-			if err != nil {
-				dialog.ShowError(fmt.Errorf("启动直播伴侣失败：%v", err), w.window)
-				return
-			}
+				err := cmd.Start()
+				if err != nil {
+					dialog.ShowError(fmt.Errorf("启动直播伴侣失败：%v", err), w.window)
+					return
+				}
 
-			w.status.SetText("直播伴侣启动请求已发送")
-		}, w.window)
+				w.status.SetText("直播伴侣启动请求已发送（提升权限）")
+			})
+		confirmDialog.SetDismissText("取消")
+		confirmDialog.SetConfirmText("继续")
+	}
+}
+
+// handleStartOBS 处理启动OBS
+func (w *MainWindow) handleStartOBS() {
+	// 检查OBS路径是否设置
+	obsPath := strings.TrimSpace(config.GetConfig().OBSLaunchPath)
+	if obsPath == "" {
+		dialog.ShowInformation("提示", "请先在设置中配置OBS启动路径", w.window)
+		return
+	}
+
+	// 检查文件是否存在
+	if _, err := os.Stat(obsPath); os.IsNotExist(err) {
+		dialog.ShowError(fmt.Errorf("OBS文件不存在：%s", obsPath), w.window)
+		return
+	}
+
+	// 获取OBS安装目录作为工作目录
+	obsDir := filepath.Dir(obsPath)
+
+	// 启动OBS，设置正确的工作目录
+	cmd := exec.Command(obsPath)
+	cmd.Dir = obsDir // 设置工作目录为OBS安装目录
+	err := cmd.Start()
+	if err != nil {
+		dialog.ShowError(fmt.Errorf("启动OBS失败：%v", err), w.window)
+		return
+	}
+
+	w.status.SetText("OBS已启动")
 }

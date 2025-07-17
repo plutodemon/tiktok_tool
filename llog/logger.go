@@ -196,7 +196,7 @@ func FatalF(format string, args ...interface{}) {
 
 // Sync 同步日志到磁盘
 func Sync() {
-	if log != nil {
+	if log == nil {
 		return
 	}
 
