@@ -2,11 +2,17 @@ package lkit
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 	"unsafe"
+
+	"github.com/shirou/gopsutil/v4/process"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 // SigChan 创建一个通道来接收信号
@@ -83,4 +89,52 @@ func IsRunAsAdmin() bool {
 	}
 
 	return elevation != 0
+}
+
+// IsProcessRunning 检查指定进程是否正在运行
+func IsProcessRunning(targetName ...string) ([]int32, error) {
+	processes, err := process.Processes()
+	if err != nil {
+		return []int32{}, err
+	}
+
+	ret := make([]int32, len(targetName))
+	for _, p := range processes {
+		name, err := p.Name()
+		if err != nil {
+			continue
+		}
+		for index, nameInfo := range targetName {
+			if strings.EqualFold(name, nameInfo) {
+				ret[index] = p.Pid
+			}
+		}
+	}
+
+	return ret, nil
+}
+
+func KillProcess(pid int32) error {
+	p, err := process.NewProcess(pid)
+	if err != nil {
+		return fmt.Errorf("无法获取进程信息: %w", err)
+	}
+
+	if err = p.Kill(); err != nil {
+		return fmt.Errorf("无法终止进程: %w", err)
+	}
+
+	return nil
+}
+
+// gbkToUTF8 将GBK编码的字节数组转换为UTF-8字符串
+// data: GBK编码的字节数组
+// 返回值: UTF-8字符串和可能的错误
+func gbkToUTF8(data []byte) (string, error) {
+	reader := transform.NewReader(strings.NewReader(string(data)), simplifiedchinese.GBK.NewDecoder())
+	result, err := io.ReadAll(reader)
+	if err != nil {
+		return "", err
+	}
+	return string(result), nil
 }

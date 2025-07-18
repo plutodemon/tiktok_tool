@@ -9,7 +9,6 @@ import (
 	"strings"
 	"syscall"
 
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -18,6 +17,32 @@ import (
 	"tiktok_tool/lkit"
 	"tiktok_tool/llog"
 )
+
+func (w *MainWindow) resetCaptureBtn() {
+	w.captureBtn.SetText("开始抓包")
+	w.captureBtn.Importance = widget.HighImportance
+	w.captureBtn.SetIcon(theme.MediaPlayIcon())
+	w.captureBtn.Refresh()
+
+	w.restartBtn.Enable()
+	w.restartBtn.Importance = widget.LowImportance
+	w.restartBtn.Refresh()
+
+	w.settingBtn.Enable()
+	w.settingBtn.Importance = widget.LowImportance
+	w.settingBtn.Refresh()
+
+	cfg := config.GetConfig()
+	if cfg.OBSLaunchPath != "" {
+		w.obsBtn.SetIcon(OBSIconResource)
+		w.obsBtn.Enable()
+		w.obsBtn.Refresh()
+	}
+	if cfg.OBSConfigPath != "" {
+		w.importOBSBtn.Enable()
+		w.importOBSBtn.Refresh()
+	}
+}
 
 func (w *MainWindow) handleCapture() {
 	if !config.IsCapturing {
@@ -32,6 +57,10 @@ func (w *MainWindow) handleCapture() {
 
 		w.restartBtn.Disable()
 		w.settingBtn.Disable()
+		w.importOBSBtn.Disable()
+		w.obsBtn.Disable()
+		w.obsBtn.SetIcon(OBSIconResourceDis)
+		w.obsBtn.Refresh()
 
 		// 清空数据
 		w.serverAddr.SetText("")
@@ -78,6 +107,7 @@ func (w *MainWindow) handleCapture() {
 	}
 }
 
+// restartApp 重启应用
 func (w *MainWindow) restartApp() {
 	if config.IsCapturing {
 		capture.StopCapturing()
@@ -85,18 +115,46 @@ func (w *MainWindow) restartApp() {
 
 	exe, err := os.Executable()
 	if err != nil {
-		dialog.ShowError(err, w.window)
+		w.NewErrorDialog(err)
 		return
 	}
 
 	cmd := exec.Command(exe)
 	err = cmd.Start()
 	if err != nil {
-		dialog.ShowError(err, w.window)
+		w.NewErrorDialog(err)
 		return
 	}
 
 	w.app.Quit()
+}
+
+// isOBSRunning 检查OBS是否正在运行
+func isOBSRunning() int32 {
+	pids, err := lkit.IsProcessRunning("obs64.exe", "obs32.exe")
+	if err != nil {
+		llog.Error("检查OBS进程失败:", err)
+		return -1
+	}
+	if pids[0] > 0 {
+		return pids[0]
+	}
+	if pids[1] > 0 {
+		return pids[1]
+	}
+	return -1
+}
+
+func isLiveCompanionRunning() int32 {
+	pids, err := lkit.IsProcessRunning("直播伴侣.exe")
+	if err != nil {
+		llog.Error("检查直播伴侣进程失败:", err)
+		return -1
+	}
+	if pids[0] > 0 {
+		return pids[0]
+	}
+	return -1
 }
 
 // handleImportOBS 处理导入OBS配置
@@ -105,21 +163,42 @@ func (w *MainWindow) handleImportOBS() {
 	serverAddr := strings.TrimSpace(w.serverAddr.Text)
 	streamKey := strings.TrimSpace(w.streamKey.Text)
 
+	streamKey = "aaaa"
+	serverAddr = "bbbb"
+
 	if serverAddr == "" || streamKey == "" {
-		dialog.ShowInformation("提示", "请先抓取到推流服务器地址和推流码", w.window)
+		w.NewInfoDialog("提示", "请先抓取到推流服务器地址和推流码")
 		return
 	}
 
 	// 检查OBS配置路径是否设置
 	obsConfigPath := strings.TrimSpace(config.GetConfig().OBSConfigPath)
 	if obsConfigPath == "" {
-		dialog.ShowInformation("提示", "请先在设置中配置OBS配置文件路径", w.window)
+		w.NewInfoDialog("提示", "请先在设置中配置OBS配置文件路径")
+		return
+	}
+
+	// 检查OBS是否正在运行
+	if pid := isOBSRunning(); pid != -1 {
+		closeConfirm := *w.NewConfirmDialog("OBS正在运行",
+			"检测到OBS正在运行，导入配置需要先关闭OBS。\n是否要自动关闭OBS？(再次启动会有提示)\n(建议：手动关闭OBS)",
+			func(confirmed bool) {
+				if !confirmed {
+					return
+				}
+				err := lkit.KillProcess(pid)
+				if err == nil {
+					return
+				}
+				w.NewErrorDialog(fmt.Errorf("关闭OBS失败：%v", err))
+			})
+		closeConfirm.SetDismissText("手动关闭")
+		closeConfirm.SetConfirmText("自动关闭")
 		return
 	}
 
 	// 确认对话框
-	dialog.ShowConfirm("确认导入",
-		"将要导入配置到以下OBS配置文件中：\n"+obsConfigPath,
+	writeConfirm := *w.NewConfirmDialog("确认导入", "将要导入配置到以下OBS配置文件中：\n"+obsConfigPath,
 		func(confirmed bool) {
 			if !confirmed {
 				return
@@ -128,13 +207,15 @@ func (w *MainWindow) handleImportOBS() {
 			// 写入OBS配置
 			err := WriteOBSConfig(obsConfigPath, serverAddr, streamKey)
 			if err != nil {
-				dialog.ShowError(fmt.Errorf("导入OBS配置失败：%v", err), w.window)
+				w.NewErrorDialog(fmt.Errorf("导入OBS配置失败：%v", err))
 				return
 			}
 
 			w.status.SetText("OBS配置导入成功")
-			dialog.ShowInformation("成功", "推流配置已成功导入到OBS！", w.window)
-		}, w.window)
+			w.NewInfoDialog("成功", "推流配置已成功导入到OBS！")
+		})
+	writeConfirm.SetDismissText("取消")
+	writeConfirm.SetConfirmText("导入")
 }
 
 // WriteOBSConfig 将推流配置写入OBS配置文件(service.json)
@@ -192,13 +273,19 @@ func (w *MainWindow) handleStartLiveCompanion() {
 	// 检查直播伴侣路径是否设置
 	liveCompanionPath := strings.TrimSpace(config.GetConfig().LiveCompanionPath)
 	if liveCompanionPath == "" {
-		dialog.ShowInformation("提示", "请先在设置中配置直播伴侣启动路径", w.window)
+		w.NewInfoDialog("提示", "请先在设置中配置直播伴侣启动路径")
 		return
 	}
 
 	// 检查文件是否存在
 	if _, err := os.Stat(liveCompanionPath); os.IsNotExist(err) {
-		dialog.ShowError(fmt.Errorf("直播伴侣文件不存在：%s", liveCompanionPath), w.window)
+		w.NewErrorDialog(fmt.Errorf("直播伴侣文件不存在：%s", liveCompanionPath))
+		return
+	}
+
+	// 检查OBS是否正在运行
+	if pid := isLiveCompanionRunning(); pid != -1 {
+		w.NewInfoDialog("直播伴侣正在运行", "检测到直播伴侣已经正在运行！\n请勿重复运行直播伴侣")
 		return
 	}
 
@@ -208,7 +295,7 @@ func (w *MainWindow) handleStartLiveCompanion() {
 		cmd := exec.Command(liveCompanionPath)
 		err := cmd.Start()
 		if err != nil {
-			dialog.ShowError(fmt.Errorf("启动直播伴侣失败：%v", err), w.window)
+			w.NewErrorDialog(fmt.Errorf("启动直播伴侣失败：%v", err))
 			return
 		}
 		w.status.SetText("直播伴侣已启动（管理员权限）")
@@ -232,7 +319,7 @@ func (w *MainWindow) handleStartLiveCompanion() {
 
 				err := cmd.Start()
 				if err != nil {
-					dialog.ShowError(fmt.Errorf("启动直播伴侣失败：%v", err), w.window)
+					w.NewErrorDialog(fmt.Errorf("启动直播伴侣失败：%v", err))
 					return
 				}
 
@@ -248,13 +335,19 @@ func (w *MainWindow) handleStartOBS() {
 	// 检查OBS路径是否设置
 	obsPath := strings.TrimSpace(config.GetConfig().OBSLaunchPath)
 	if obsPath == "" {
-		dialog.ShowInformation("提示", "请先在设置中配置OBS启动路径", w.window)
+		w.NewInfoDialog("提示", "请先在设置中配置OBS启动路径")
 		return
 	}
 
 	// 检查文件是否存在
 	if _, err := os.Stat(obsPath); os.IsNotExist(err) {
-		dialog.ShowError(fmt.Errorf("OBS文件不存在：%s", obsPath), w.window)
+		w.NewErrorDialog(fmt.Errorf("OBS文件不存在：%s", obsPath))
+		return
+	}
+
+	// 检查OBS是否正在运行
+	if pid := isOBSRunning(); pid != -1 {
+		w.NewInfoDialog("OBS正在运行", "检测到OBS已经正在运行！\n请勿重复运行OBS")
 		return
 	}
 
@@ -266,7 +359,7 @@ func (w *MainWindow) handleStartOBS() {
 	cmd.Dir = obsDir // 设置工作目录为OBS安装目录
 	err := cmd.Start()
 	if err != nil {
-		dialog.ShowError(fmt.Errorf("启动OBS失败：%v", err), w.window)
+		w.NewErrorDialog(fmt.Errorf("启动OBS失败：%v", err))
 		return
 	}
 

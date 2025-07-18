@@ -2,6 +2,7 @@ package ui
 
 import (
 	_ "embed"
+	"image/color"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -16,6 +17,28 @@ import (
 	"tiktok_tool/lkit"
 )
 
+var (
+	//go:embed img/tiktok.png
+	tikTokIcon         []byte
+	TikTokIconResource = fyne.NewStaticResource("tiktokIcon", tikTokIcon)
+
+	//go:embed img/live.png
+	LiveIcon         []byte
+	LiveIconResource = fyne.NewStaticResource("liveIcon", LiveIcon)
+
+	//go:embed img/OBS.png
+	OBSIcon         []byte
+	OBSIconResource = fyne.NewStaticResource("OBSIcon", OBSIcon)
+
+	//go:embed img/OBS_dis.png
+	OBSIconDis         []byte
+	OBSIconResourceDis = fyne.NewStaticResource("OBSIconDis", OBSIconDis)
+
+	//go:embed img/font.ttf
+	resourceTtf  []byte
+	resourceFont = fyne.NewStaticResource("font.ttf", resourceTtf)
+)
+
 type MainWindow struct {
 	window     fyne.Window
 	app        fyne.App
@@ -25,40 +48,32 @@ type MainWindow struct {
 	captureBtn *widget.Button
 	restartBtn *widget.Button
 	settingBtn *widget.Button
+
+	importOBSBtn *widget.Button
+	obsBtn       *widget.Button
 }
 
-func (w *MainWindow) resetCaptureBtn() {
-	w.captureBtn.SetText("开始抓包")
-	w.captureBtn.Importance = widget.HighImportance
-	w.captureBtn.SetIcon(theme.MediaPlayIcon())
-	w.captureBtn.Refresh()
+type ChineseTheme struct{}
 
-	w.restartBtn.Enable()
-	w.restartBtn.Importance = widget.LowImportance
-	w.restartBtn.Refresh()
-
-	w.settingBtn.Enable()
-	w.settingBtn.Importance = widget.LowImportance
-	w.settingBtn.Refresh()
+func (ChineseTheme) Font(s fyne.TextStyle) fyne.Resource {
+	return resourceFont
 }
-
-//go:embed img/tiktok.png
-var tikTokIcon []byte
-var TikTokIconResource = fyne.NewStaticResource("tiktokIcon", tikTokIcon)
-
-//go:embed img/live.png
-var LiveIcon []byte
-var LiveIconResource = fyne.NewStaticResource("liveIcon", LiveIcon)
-
-//go:embed img/OBS.png
-var OBSIcon []byte
-var OBSIconResource = fyne.NewStaticResource("OBSIcon", OBSIcon)
+func (ChineseTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
+	return theme.DefaultTheme().Color(n, v)
+}
+func (ChineseTheme) Icon(n fyne.ThemeIconName) fyne.Resource {
+	return theme.DefaultTheme().Icon(n)
+}
+func (ChineseTheme) Size(n fyne.ThemeSizeName) float32 {
+	return theme.DefaultTheme().Size(n)
+}
 
 func NewMainWindow() {
 	myApp := app.NewWithID("com.lemon.tiktok_tool")
 	myApp.SetIcon(TikTokIconResource)
+	myApp.Settings().SetTheme(&ChineseTheme{})
 	window := myApp.NewWindow("抖音直播推流配置抓取")
-	window.Resize(fyne.NewSize(600, 180))
+	window.Resize(fyne.NewSize(600, 280))
 	window.SetFixedSize(true)
 	window.SetMaster()
 	window.CenterOnScreen()
@@ -138,27 +153,27 @@ func (w *MainWindow) setupUI() {
 	w.captureBtn = widget.NewButtonWithIcon("开始抓包", theme.MediaPlayIcon(), w.handleCapture)
 	w.captureBtn.Importance = widget.HighImportance
 
+	// 导入OBS配置按钮
+	w.importOBSBtn = widget.NewButtonWithIcon("导入OBS", theme.DocumentSaveIcon(), w.handleImportOBS)
+	if cfg.OBSConfigPath == "" {
+		w.importOBSBtn.Disable()
+	}
+
 	// 启动直播伴侣按钮
 	liveBtn := widget.NewButtonWithIcon("启动直播伴侣", LiveIconResource, w.handleStartLiveCompanion)
 	if cfg.LiveCompanionPath == "" {
 		liveBtn.Disable()
 	}
 
-	// 导入OBS配置按钮
-	importOBSBtn := widget.NewButtonWithIcon("导入OBS", theme.DocumentSaveIcon(), w.handleImportOBS)
-	if cfg.OBSConfigPath == "" {
-		importOBSBtn.Disable()
-	}
-
 	// 启动OBS
-	obsBtn := widget.NewButtonWithIcon("启动OBS", OBSIconResource, w.handleStartOBS)
+	w.obsBtn = widget.NewButtonWithIcon("启动OBS", OBSIconResource, w.handleStartOBS)
 	if cfg.OBSLaunchPath == "" {
-		obsBtn.Disable()
+		w.obsBtn.Disable()
+		w.obsBtn.SetIcon(OBSIconResourceDis)
 	}
 
 	serverContainer := container.NewBorder(nil, nil, nil, copyServerBtn, w.serverAddr)
 	streamContainer := container.NewBorder(nil, nil, nil, copyStreamBtn, w.streamKey)
-	actionContainer := container.New(layout.NewGridLayout(4), w.captureBtn, liveBtn, importOBSBtn, obsBtn)
 
 	mainForm := widget.NewForm(
 		widget.NewFormItem("服务器地址", serverContainer),
@@ -188,6 +203,9 @@ func (w *MainWindow) setupUI() {
 		permissionStatus.Importance = widget.SuccessImportance
 	}
 
+	actionContainer := container.New(layout.NewGridLayout(2), w.captureBtn, w.importOBSBtn)
+	openContainer := container.New(layout.NewGridLayout(2), liveBtn, w.obsBtn)
+
 	statusContainer := container.NewHBox(
 		widget.NewIcon(theme.InfoIcon()),
 		permissionStatus,
@@ -199,8 +217,9 @@ func (w *MainWindow) setupUI() {
 	)
 
 	content := container.NewVBox(
-		mainForm,
-		actionContainer,
+		container.NewPadded(mainForm),
+		container.NewPadded(actionContainer),
+		container.NewPadded(openContainer),
 		layout.NewSpacer(),
 		widget.NewSeparator(),
 		statusContainer,
