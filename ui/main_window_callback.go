@@ -145,6 +145,19 @@ func isOBSRunning() int32 {
 	return -1
 }
 
+// handleWindowClose 处理窗口关闭事件
+// 根据配置决定是最小化到托盘还是退出程序
+func (w *MainWindow) handleWindowClose() {
+	cfg := config.GetConfig()
+	if cfg.MinimizeOnClose {
+		// 最小化到系统托盘
+		w.window.Hide()
+	} else {
+		// 正常退出程序
+		w.window.Close()
+	}
+}
+
 func isLiveCompanionRunning() int32 {
 	pids, err := lkit.IsProcessRunning("直播伴侣.exe")
 	if err != nil {

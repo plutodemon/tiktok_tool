@@ -93,6 +93,7 @@ func NewMainWindow() {
 	}
 
 	w.addSystemTray()
+	window.SetCloseIntercept(w.handleWindowClose)
 	w.setupUI()
 	window.ShowAndRun()
 }

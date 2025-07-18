@@ -37,6 +37,9 @@ type SettingsWindow struct {
 	// 日志配置
 	logToFile *widget.Check
 	logLevel  *widget.Select
+
+	// 窗口行为配置
+	minimizeOnClose *widget.Check
 }
 
 func ShowSettingsWindow(parent fyne.App, closeCallback func(), saveCallback func(string)) {
@@ -135,6 +138,10 @@ func (w *SettingsWindow) setupUI() {
 		w.logLevel.SetSelected("info")
 	}
 
+	// 创建窗口行为配置控件
+	w.minimizeOnClose = widget.NewCheck("关闭窗口时最小化到托盘", nil)
+	w.minimizeOnClose.SetChecked(currentConfig.MinimizeOnClose)
+
 	// 创建标签页内容
 	regexTab := w.createRegexTab()
 	networkTab := w.createNetworkTab()
@@ -195,6 +202,7 @@ func (w *SettingsWindow) saveSettings(checks []string) {
 		OBSConfigPath:     strings.TrimSpace(w.obsConfigPath.Text),
 		LiveCompanionPath: strings.TrimSpace(w.liveCompanionPath.Text),
 		PluginScriptPath:  strings.TrimSpace(w.pluginScriptPath.Text),
+		MinimizeOnClose:   w.minimizeOnClose.Checked,
 		LogConfig:         &updatedLogConfig,
 	}
 

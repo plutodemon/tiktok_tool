@@ -69,6 +69,7 @@ func (w *SettingsWindow) createOtherTab(alreadyCheck *[]string) fyne.CanvasObjec
 		widget.NewFormItem("OBS启动路径", obsLaunchPathContainer),
 		widget.NewFormItem("OBS配置文件路径", obsPathContainer),
 		widget.NewFormItem("直播伴侣启动路径", liveCompanionPathContainer),
+		widget.NewFormItem("窗口行为", w.minimizeOnClose),
 	)
 
 	// 创建恢复默认配置按钮
@@ -77,10 +78,11 @@ func (w *SettingsWindow) createOtherTab(alreadyCheck *[]string) fyne.CanvasObjec
 	})
 
 	// 添加说明文本
-	otherHelp := widget.NewRichTextFromMarkdown("### 路径配置说明\n\n" +
+	otherHelp := widget.NewRichTextFromMarkdown("### 配置说明\n\n" +
 		"* **OBS启动路径**：OBS Studio的可执行文件路径，用于快速启动OBS\n" +
 		"* **OBS配置文件路径**：OBS Studio的配置文件路径，用于导入OBS推流设置\n" +
-		"* **直播伴侣启动路径**：抖音直播伴侣的可执行文件路径，用于快速启动直播伴侣")
+		"* **直播伴侣启动路径**：抖音直播伴侣的可执行文件路径，用于快速启动直播伴侣\n" +
+		"* **关闭窗口时最小化到托盘**：勾选后关闭窗口时程序将最小化到系统托盘而不退出")
 
 	// 创建容器
 	return container.NewVBox(
@@ -131,6 +133,8 @@ func (w *SettingsWindow) resetToDefaults(alreadyCheck *[]string) {
 			w.logToFile.SetChecked(config.DefaultConfig.LogConfig.File)
 			w.logLevel.SetSelected(config.DefaultConfig.LogConfig.Level)
 		}
+		// 恢复窗口行为配置默认值
+		w.minimizeOnClose.SetChecked(config.DefaultConfig.MinimizeOnClose)
 		*alreadyCheck = nil // 清空已选网卡
 
 		w.close()
