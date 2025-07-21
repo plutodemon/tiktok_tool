@@ -28,17 +28,18 @@ func CheckNpcapInstalled() bool {
 
 // StopCapturing 停止抓包
 func StopCapturing() {
-	if config.IsCapturing {
-		config.IsCapturing = false
-		close(config.StopCapture)
-
-		config.HandleMutex.Lock()
-		for _, handle := range config.Handles {
-			handle.Close()
-		}
-		config.Handles = nil
-		config.HandleMutex.Unlock()
+	if config.IsCapturing == false {
+		return
 	}
+	config.IsCapturing = false
+	close(config.StopCapture)
+
+	config.HandleMutex.Lock()
+	for _, handle := range config.Handles {
+		handle.Close()
+	}
+	config.Handles = nil
+	config.HandleMutex.Unlock()
 }
 
 // StartCapture 开始抓包

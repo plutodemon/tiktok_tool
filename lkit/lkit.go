@@ -1,9 +1,11 @@
 package lkit
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -137,4 +139,49 @@ func gbkToUTF8(data []byte) (string, error) {
 		return "", err
 	}
 	return string(result), nil
+}
+
+type AutoResult struct {
+	Success      bool   `json:"success"`
+	Error        string `json:"error,omitempty"`
+	ControlTitle string `json:"control_title,omitempty"`
+	ControlType  string `json:"control_type,omitempty"`
+	Position     struct {
+		Left   int `json:"left"`
+		Top    int `json:"top"`
+		Right  int `json:"right"`
+		Bottom int `json:"bottom"`
+	} `json:"position,omitempty"`
+	Center struct {
+		X int `json:"x"`
+		Y int `json:"y"`
+	} `json:"center,omitempty"`
+	Clicked      bool   `json:"clicked,omitempty"`
+	Action       string `json:"action,omitempty"`
+	AppName      string `json:"app_name,omitempty"`
+	WindowsFound int    `json:"windows_found,omitempty"`
+	DumpFile     string `json:"dump_file,omitempty"`
+}
+
+func RunAutoTool(exePath string, args []string) (*AutoResult, error) {
+	cmd := exec.Command(exePath, args...)
+
+	// 设置工作目录
+	cmd.Dir = filepath.Dir(exePath)
+
+	// 执行命令并获取输出
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("执行命令失败: %v, 输出: %s", err, string(output))
+	}
+
+	// 解析JSON输出
+	var result AutoResult
+
+	err = json.Unmarshal(output, &result)
+	if err != nil {
+		return nil, fmt.Errorf("解析JSON失败: %v, 原始输出: %s", err, output)
+	}
+
+	return &result, nil
 }

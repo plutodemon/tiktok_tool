@@ -8,7 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -289,85 +293,96 @@ func WriteOBSConfig(configPath, server, key string) error {
 
 // handleStartLiveCompanion 处理启动直播伴侣
 func (w *MainWindow) handleStartLiveCompanion() {
-	// 检查直播伴侣路径是否设置
-	liveCompanionPath := strings.TrimSpace(config.GetConfig().LiveCompanionPath)
-	if liveCompanionPath == "" {
-		w.NewInfoDialog("提示", "请先在设置中配置直播伴侣启动路径")
+	quit := false
+	if lkit.IsAdmin == false {
+		confirmDialog := *w.NewConfirmDialog("管理员权限确认",
+			"启动直播伴侣需要管理员权限，系统将弹出UAC提示\n是否继续启动？",
+			func(confirmed bool) {
+				quit = !confirmed
+			})
+		confirmDialog.SetDismissText("取消")
+		confirmDialog.SetConfirmText("继续")
+	}
+
+	if quit {
 		return
+	}
+
+	if err := w.startLiveCompanion(); err != nil {
+		w.NewErrorDialog(err)
+		return
+	}
+
+	w.status.SetText("直播伴侣启动请求已发送")
+}
+
+// startLiveCompanion 启动直播伴侣
+func (w *MainWindow) startLiveCompanion() error {
+	liveCompanionPath := strings.TrimSpace(config.GetConfig().LiveCompanionPath)
+
+	// 检查路径是否为空
+	if liveCompanionPath == "" {
+		return fmt.Errorf("请先在设置中配置直播伴侣启动路径")
 	}
 
 	// 检查文件是否存在
 	if _, err := os.Stat(liveCompanionPath); os.IsNotExist(err) {
-		w.NewErrorDialog(fmt.Errorf("直播伴侣文件不存在：%s", liveCompanionPath))
-		return
+		return fmt.Errorf("直播伴侣文件不存在：%s", liveCompanionPath)
 	}
 
-	// 检查OBS是否正在运行
+	// 检查是否已经运行
 	if pid := isLiveCompanionRunning(); pid != -1 {
-		w.NewInfoDialog("直播伴侣正在运行", "检测到直播伴侣已经正在运行！\n请勿重复运行直播伴侣")
-		return
+		return fmt.Errorf("检测到直播伴侣已经正在运行！\n请勿重复运行直播伴侣")
 	}
 
-	// 检查当前权限状态
 	if lkit.IsAdmin {
 		// 已经是管理员权限，直接启动
 		cmd := exec.Command(liveCompanionPath)
 		err := cmd.Start()
 		if err != nil {
-			w.NewErrorDialog(fmt.Errorf("启动直播伴侣失败：%v", err))
-			return
+			return fmt.Errorf("启动直播伴侣失败：%v", err)
 		}
-		w.status.SetText("直播伴侣已启动（管理员权限）")
 	} else {
-		// 普通用户权限，显示确认对话框并以管理员权限启动
-		confirmDialog := *w.NewConfirmDialog("管理员权限确认",
-			"启动直播伴侣需要管理员权限，系统将弹出UAC提示\n是否继续启动？",
-			func(confirmed bool) {
-				if !confirmed {
-					return
-				}
-
-				// 使用PowerShell以管理员权限启动直播伴侣
-				powershellCmd := fmt.Sprintf("Start-Process -FilePath '%s' -Verb RunAs", liveCompanionPath)
-				cmd := exec.Command("powershell", "-Command", powershellCmd)
-
-				// 隐藏PowerShell窗口
-				cmd.SysProcAttr = &syscall.SysProcAttr{
-					HideWindow: true,
-				}
-
-				err := cmd.Start()
-				if err != nil {
-					w.NewErrorDialog(fmt.Errorf("启动直播伴侣失败：%v", err))
-					return
-				}
-
-				w.status.SetText("直播伴侣启动请求已发送（提升权限）")
-			})
-		confirmDialog.SetDismissText("取消")
-		confirmDialog.SetConfirmText("继续")
+		// 使用PowerShell以管理员权限启动直播伴侣
+		powershellCmd := fmt.Sprintf("Start-Process -FilePath '%s' -Verb RunAs", liveCompanionPath)
+		cmd := exec.Command("powershell", "-Command", powershellCmd)
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			HideWindow: true,
+		}
+		err := cmd.Start()
+		if err != nil {
+			return fmt.Errorf("启动直播伴侣失败：%v", err)
+		}
 	}
+
+	return nil
 }
 
 // handleStartOBS 处理启动OBS
 func (w *MainWindow) handleStartOBS() {
-	// 检查OBS路径是否设置
+	if err := w.startOBS(); err != nil {
+		w.NewErrorDialog(err)
+		return
+	}
+
+	w.status.SetText("OBS启动请求已发送")
+}
+
+// startOBSForAuto 为自动流程启动OBS
+func (w *MainWindow) startOBS() error {
 	obsPath := strings.TrimSpace(config.GetConfig().OBSLaunchPath)
 	if obsPath == "" {
-		w.NewInfoDialog("提示", "请先在设置中配置OBS启动路径")
-		return
+		return fmt.Errorf("请先在设置中配置OBS启动路径")
 	}
 
 	// 检查文件是否存在
 	if _, err := os.Stat(obsPath); os.IsNotExist(err) {
-		w.NewErrorDialog(fmt.Errorf("OBS文件不存在：%s", obsPath))
-		return
+		return fmt.Errorf("OBS文件不存在：%s", obsPath)
 	}
 
 	// 检查OBS是否正在运行
 	if pid := isOBSRunning(); pid != -1 {
-		w.NewInfoDialog("OBS正在运行", "检测到OBS已经正在运行！\n请勿重复运行OBS")
-		return
+		return fmt.Errorf("检测到OBS已经正在运行！\n请勿重复运行OBS")
 	}
 
 	// 获取OBS安装目录作为工作目录
@@ -375,16 +390,269 @@ func (w *MainWindow) handleStartOBS() {
 
 	// 启动OBS，设置正确的工作目录
 	cmd := exec.Command(obsPath)
-	cmd.Dir = obsDir // 设置工作目录为OBS安装目录
+	cmd.Dir = obsDir
 	err := cmd.Start()
 	if err != nil {
+		return fmt.Errorf("启动OBS失败：%v", err)
+	}
+
+	return nil
+}
+
+// handleAutoStart 处理一键开播功能
+// 流程：启动直播伴侣 -> 开始抓包 -> 模拟点击开始直播 -> 获取推流信息 -> 导入OBS -> 启动OBS -> 关闭直播伴侣
+func (w *MainWindow) handleAutoStart() {
+	// 检查所有必要的配置
+	if err := w.validateAutoStartConfig(); err != nil {
+		w.NewErrorDialog(err)
+		return
+	}
+
+	// 显示确认对话框
+	confirmDialog := *w.NewConfirmDialog("一键开播确认",
+		"即将执行一键开播流程：\n1. 启动直播伴侣\n2. 开始抓包\n3. 模拟点击开始直播\n4. 获取推流信息\n5. 导入OBS配置\n6. 启动OBS\n7. 关闭直播伴侣\n\n是否继续？",
+		func(confirmed bool) {
+			if !confirmed {
+				return
+			}
+			w.executeAutoStartFlow()
+		})
+	confirmDialog.SetDismissText("取消")
+	confirmDialog.SetConfirmText("开始")
+}
+
+// validateAutoStartConfig 验证一键开播所需的配置
+func (w *MainWindow) validateAutoStartConfig() error {
+	cfg := config.GetConfig()
+
+	// 检查直播伴侣路径
+	if strings.TrimSpace(cfg.LiveCompanionPath) == "" {
+		return fmt.Errorf("请先在设置中配置直播伴侣启动路径")
+	}
+	if _, err := os.Stat(cfg.LiveCompanionPath); os.IsNotExist(err) {
+		return fmt.Errorf("直播伴侣文件不存在：%s", cfg.LiveCompanionPath)
+	}
+
+	// 检查OBS路径
+	if strings.TrimSpace(cfg.OBSLaunchPath) == "" {
+		return fmt.Errorf("请先在设置中配置OBS启动路径")
+	}
+	if _, err := os.Stat(cfg.OBSLaunchPath); os.IsNotExist(err) {
+		return fmt.Errorf("OBS文件不存在：%s", cfg.OBSLaunchPath)
+	}
+
+	// 检查OBS配置路径
+	if strings.TrimSpace(cfg.OBSConfigPath) == "" {
+		return fmt.Errorf("请先在设置中配置OBS配置文件路径")
+	}
+	if _, err := os.Stat(cfg.OBSConfigPath); os.IsNotExist(err) {
+		return fmt.Errorf("OBS配置文件不存在：%s", cfg.OBSConfigPath)
+	}
+
+	// 检查auto.exe脚本路径
+	if strings.TrimSpace(cfg.PluginScriptPath) == "" {
+		return fmt.Errorf("请先在设置中配置自动化脚本路径")
+	}
+	if _, err := os.Stat(cfg.PluginScriptPath); os.IsNotExist(err) {
+		return fmt.Errorf("自动化脚本文件不存在：%s", cfg.PluginScriptPath)
+	}
+
+	// 检查是否已有程序在运行
+	if pid := isOBSRunning(); pid != -1 {
+		return fmt.Errorf("OBS已在运行，请先关闭后再使用一键开播")
+	}
+	// if pid := isLiveCompanionRunning(); pid != -1 {
+	// 	return fmt.Errorf("直播伴侣已在运行，请先关闭后再使用一键开播")
+	// }
+
+	return nil
+}
+
+// executeAutoStartFlow 执行一键开播流程
+func (w *MainWindow) executeAutoStartFlow() {
+	// 创建进度对话框
+	progressLabel := widget.NewLabel("正在执行一键开播流程...")
+	progressBar := widget.NewProgressBar()
+	progressBar.SetValue(0.0)
+
+	progressDialog := w.NewCustomWithoutButtons("一键开播", container.NewVBox(
+		progressLabel,
+		progressBar,
+	))
+
+	// 在后台执行流程
+	lkit.SafeGo(func() {
+		w.autoStart(progressDialog, progressLabel, progressBar)
+	})
+}
+
+func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabel *widget.Label, progressBar *widget.ProgressBar) {
+	var progressError error
+	defer func() {
+		if progressError != nil {
+			progressDialog.Hide()
+			w.NewErrorDialog(progressError)
+		}
+	}()
+
+	// 步骤1：启动直播伴侣
+	progressLabel.SetText("步骤1/7: 启动直播伴侣...")
+	progressBar.SetValue(1.0 / 7.0)
+	if err := w.startLiveCompanion(); err != nil {
+		progressError = err
+		return
+	}
+
+	// 等待直播伴侣启动
+	fyne.DoAndWait(func() {
+		time.Sleep(3 * time.Second)
+	})
+
+	// 步骤2：开始抓包
+	progressLabel.SetText("步骤2/7: 开始抓包...")
+	progressBar.SetValue(2.0 / 7.0)
+	if err := w.startCaptureForAuto(); err != nil {
+		progressError = err
+		return
+	}
+
+	// 等待抓包开始
+	fyne.DoAndWait(func() {
+		time.Sleep(3 * time.Second)
+	})
+
+	// 步骤3：模拟点击开始直播
+	progressLabel.SetText("步骤3/7: 模拟点击开始直播...")
+	progressBar.SetValue(3.0 / 7.0)
+	if err := w.simulateClickStartLive(); err != nil {
+		progressError = err
+		return
+	}
+
+	// 等待模拟点击完成
+	fyne.DoAndWait(func() {
+		time.Sleep(3 * time.Second)
+	})
+
+	// 步骤4：获取推流信息
+	progressLabel.SetText("步骤4/7: 获取推流信息...")
+	progressBar.SetValue(4.0 / 7.0)
+	if w.serverAddr.Text == "" || w.streamKey.Text == "" {
+		progressError = fmt.Errorf("未找到推流服务器地址或推流码，请检查直播配置")
+		return
+	}
+
+	// 步骤5：导入OBS配置
+	progressLabel.SetText("步骤5/7: 导入OBS配置...")
+	progressBar.SetValue(5.0 / 7.0)
+	if err := w.importOBSConfigForAuto(); err != nil {
+		progressError = fmt.Errorf("导入OBS配置失败：%v", err)
+		return
+	}
+
+	// 步骤6：启动OBS
+	progressLabel.SetText("步骤6/7: 启动OBS...")
+	progressBar.SetValue(6.0 / 7.0)
+	if err := w.startOBS(); err != nil {
+		progressDialog.Hide()
 		w.NewErrorDialog(fmt.Errorf("启动OBS失败：%v", err))
 		return
 	}
 
-	w.status.SetText("OBS已启动")
+	// 等待OBS启动
+	fyne.DoAndWait(func() {
+		time.Sleep(3 * time.Second)
+	})
+
+	// 步骤7：关闭直播伴侣
+	progressLabel.SetText("步骤7/7: 关闭直播伴侣...")
+	progressBar.SetValue(7.0 / 7.0)
+	if err := w.closeLiveCompanionForAuto(); err != nil {
+		progressError = err
+		return
+	}
+
+	// 完成
+	progressDialog.Hide()
+	w.status.SetText("一键开播完成！")
+	w.NewInfoDialog("一键开播完成", "一键开播流程已完成！\n\n推流配置已导入OBS，OBS已启动，直播伴侣已关闭。\n现在可以在OBS中开始推流了。")
 }
 
-func (w *MainWindow) handleAutoStart() {
+// startCaptureForAuto 为自动流程开始抓包
+func (w *MainWindow) startCaptureForAuto() error {
+	// 开始抓包
+	config.IsCapturing = true
+	config.StopCapture = make(chan struct{})
 
+	// 清空数据
+	w.serverAddr.SetText("")
+	w.streamKey.SetText("")
+
+	var err error
+	// 启动抓包
+	capture.StartCapture(
+		func(server string) {
+			w.serverAddr.SetText(server)
+		},
+		func(streamKey string) {
+			w.streamKey.SetText(streamKey)
+		},
+		func(err error) {
+			err = fmt.Errorf("抓包过程中发生错误: %v", err)
+		}, nil,
+	)
+
+	return err
+}
+
+// simulateClickStartLive 使用auto.exe模拟点击开始直播按钮
+func (w *MainWindow) simulateClickStartLive() error {
+	autoExePath := strings.TrimSpace(config.GetConfig().PluginScriptPath)
+	args := []string{"--app", "直播伴侣", "--control", "开始直播", "--type", "Text", "--click"}
+
+	_, err := lkit.RunAutoTool(autoExePath, args)
+	if err != nil {
+		return fmt.Errorf("模拟点击开始直播失败：%v", err)
+	}
+	return nil
+}
+
+// importOBSConfigForAuto 为自动流程导入OBS配置
+func (w *MainWindow) importOBSConfigForAuto() error {
+	serverAddr := strings.TrimSpace(w.serverAddr.Text)
+	streamKey := strings.TrimSpace(w.streamKey.Text)
+
+	if serverAddr == "" || streamKey == "" {
+		return fmt.Errorf("推流信息不完整")
+	}
+
+	if pid := isOBSRunning(); pid != -1 {
+		return fmt.Errorf("OBS正在运行，请先关闭OBS后再导入配置")
+	}
+
+	return WriteOBSConfig(strings.TrimSpace(config.GetConfig().OBSConfigPath), serverAddr, streamKey)
+}
+
+// closeLiveCompanionForAuto 为自动流程关闭直播伴侣
+func (w *MainWindow) closeLiveCompanionForAuto() error {
+	autoExePath := strings.TrimSpace(config.GetConfig().PluginScriptPath)
+	args := []string{"--app", "直播伴侣", "--control", "关闭", "--type", "Button", "--click"}
+
+	_, err := lkit.RunAutoTool(autoExePath, args)
+	if err != nil {
+		return fmt.Errorf("模拟关闭直播伴侣失败：%v", err)
+	}
+
+	fyne.DoAndWait(func() {
+		time.Sleep(3 * time.Second)
+	})
+
+	args = []string{"--app", "直播伴侣", "--control", "确定", "--type", "Button", "--click"}
+
+	_, err = lkit.RunAutoTool(autoExePath, args)
+	if err != nil {
+		return fmt.Errorf("模拟关闭直播伴侣失败：%v", err)
+	}
+
+	return nil
 }
