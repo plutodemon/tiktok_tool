@@ -50,7 +50,7 @@ type Config struct {
 var DefaultConfig = Config{
 	NetworkInterfaces: []string{},
 	ServerRegex:       `(rtmp://push-rtmp-[a-zA-Z0-9\-]+\.douyincdn\.com/thirdgame)`,
-	StreamKeyRegex:    `"(stream-\d+\?(?:[^&]+=[^&]*&)*expire=\d{10}&sign=[^&]+)"`,
+	StreamKeyRegex:    `(stream-\d+\?(?:[^&]+=[^&]*&)*expire=\d{10}&sign=[^&]+)`,
 	OBSLaunchPath:     "",    // 默认为空，需要用户手动配置
 	OBSConfigPath:     "",    // 默认为空，需要用户手动配置
 	LiveCompanionPath: "",    // 默认为空，需要用户手动配置
@@ -79,13 +79,10 @@ func LoadConfig() error {
 func SaveSettings(settings Config) error {
 	// 优先保存到config目录
 	configDir := "config"
-	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		// config目录不存在，创建它
-		// if err := os.MkdirAll(configDir, 0755); err != nil {
-		// 如果创建失败，保存到当前目录
+	if err := os.MkdirAll(configDir, 0755); err != nil {
 		configDir = "."
-		// }
 	}
+
 	configPath = filepath.Join(configDir, "tiktok_tool_cfg.toml")
 	file, err := os.Create(configPath)
 	if err != nil {

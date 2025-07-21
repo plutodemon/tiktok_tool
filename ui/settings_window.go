@@ -45,7 +45,7 @@ type SettingsWindow struct {
 func ShowSettingsWindow(parent fyne.App, closeCallback func(), saveCallback func(string)) {
 	// 创建设置窗口
 	settingsWindow := parent.NewWindow("设置")
-	settingsWindow.Resize(fyne.NewSize(600, 350))
+	settingsWindow.Resize(fyne.NewSize(605, 350))
 	settingsWindow.SetFixedSize(true)
 	settingsWindow.CenterOnScreen()
 
@@ -147,7 +147,8 @@ func (w *SettingsWindow) setupUI() {
 	networkTab := w.createNetworkTab()
 	logTab := w.createLogTab()
 	scriptTab := w.createScriptTab()
-	otherTab := w.createOtherTab(&alreadyCheck)
+	pathTab := w.createPathTab(&alreadyCheck)
+	windowTab := w.createWindowTab()
 
 	// 创建标签容器
 	tabs := container.NewAppTabs(
@@ -155,7 +156,8 @@ func (w *SettingsWindow) setupUI() {
 		container.NewTabItemWithIcon("网卡设置", theme.SearchIcon(), networkTab),
 		container.NewTabItemWithIcon("日志设置", theme.ErrorIcon(), logTab),
 		container.NewTabItemWithIcon("脚本设置", theme.ComputerIcon(), scriptTab),
-		container.NewTabItemWithIcon("其他设置", theme.SettingsIcon(), otherTab),
+		container.NewTabItemWithIcon("路径设置", theme.SettingsIcon(), pathTab),
+		container.NewTabItemWithIcon("窗口行为", theme.WindowMaximizeIcon(), windowTab),
 	)
 	tabs.SetTabLocation(container.TabLocationTop)
 

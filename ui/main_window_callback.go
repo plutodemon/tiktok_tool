@@ -37,9 +37,17 @@ func (w *MainWindow) resetCaptureBtn() {
 		w.obsBtn.SetIcon(OBSIconResource)
 		w.obsBtn.Enable()
 		w.obsBtn.Refresh()
+	} else {
+		w.obsBtn.SetIcon(OBSIconResourceDis)
+		w.obsBtn.Disable()
+		w.obsBtn.Refresh()
 	}
+
 	if cfg.OBSConfigPath != "" {
 		w.importOBSBtn.Enable()
+		w.importOBSBtn.Refresh()
+	} else {
+		w.importOBSBtn.Disable()
 		w.importOBSBtn.Refresh()
 	}
 }
@@ -54,6 +62,7 @@ func (w *MainWindow) handleCapture() {
 		w.captureBtn.SetText("停止抓包")
 		w.captureBtn.Importance = widget.DangerImportance
 		w.captureBtn.SetIcon(theme.MediaPauseIcon())
+		w.captureBtn.Refresh()
 
 		w.restartBtn.Disable()
 		w.settingBtn.Disable()
@@ -175,9 +184,6 @@ func (w *MainWindow) handleImportOBS() {
 	// 检查是否有推流信息
 	serverAddr := strings.TrimSpace(w.serverAddr.Text)
 	streamKey := strings.TrimSpace(w.streamKey.Text)
-
-	streamKey = "aaaa"
-	serverAddr = "bbbb"
 
 	if serverAddr == "" || streamKey == "" {
 		w.NewInfoDialog("提示", "请先抓取到推流服务器地址和推流码")
@@ -377,4 +383,8 @@ func (w *MainWindow) handleStartOBS() {
 	}
 
 	w.status.SetText("OBS已启动")
+}
+
+func (w *MainWindow) handleAutoStart() {
+
 }

@@ -22,6 +22,10 @@ var (
 	tikTokIcon         []byte
 	TikTokIconResource = fyne.NewStaticResource("tiktokIcon", tikTokIcon)
 
+	//go:embed img/tiktok_dis.png
+	tikTokIconDis         []byte
+	TikTokIconResourceDis = fyne.NewStaticResource("tiktokIconDis", tikTokIconDis)
+
 	//go:embed img/live.png
 	LiveIcon         []byte
 	LiveIconResource = fyne.NewStaticResource("liveIcon", LiveIcon)
@@ -42,20 +46,23 @@ var (
 type MainWindow struct {
 	window     fyne.Window
 	app        fyne.App
-	status     *widget.Label
 	serverAddr *widget.Entry
 	streamKey  *widget.Entry
-	captureBtn *widget.Button
+
+	captureBtn   *widget.Button
+	importOBSBtn *widget.Button
+	liveBtn      *widget.Button
+	obsBtn       *widget.Button
+	autoBtn      *widget.Button
+
+	status     *widget.Label
 	restartBtn *widget.Button
 	settingBtn *widget.Button
-
-	importOBSBtn *widget.Button
-	obsBtn       *widget.Button
 }
 
 type ChineseTheme struct{}
 
-func (ChineseTheme) Font(s fyne.TextStyle) fyne.Resource {
+func (ChineseTheme) Font(fyne.TextStyle) fyne.Resource {
 	return resourceFont
 }
 func (ChineseTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
@@ -161,9 +168,9 @@ func (w *MainWindow) setupUI() {
 	}
 
 	// 启动直播伴侣按钮
-	liveBtn := widget.NewButtonWithIcon("启动直播伴侣", LiveIconResource, w.handleStartLiveCompanion)
+	w.liveBtn = widget.NewButtonWithIcon("启动直播伴侣", LiveIconResource, w.handleStartLiveCompanion)
 	if cfg.LiveCompanionPath == "" {
-		liveBtn.Disable()
+		w.liveBtn.Disable()
 	}
 
 	// 启动OBS
@@ -171,6 +178,15 @@ func (w *MainWindow) setupUI() {
 	if cfg.OBSLaunchPath == "" {
 		w.obsBtn.Disable()
 		w.obsBtn.SetIcon(OBSIconResourceDis)
+	}
+
+	// 自动推流按钮
+	w.autoBtn = widget.NewButtonWithIcon("一键开播", TikTokIconResourceDis, nil)
+	if lkit.IsAdmin && cfg.OBSConfigPath != "" && cfg.LiveCompanionPath != "" && cfg.OBSLaunchPath != "" {
+		w.autoBtn.SetIcon(TikTokIconResource)
+		w.autoBtn.OnTapped = w.handleAutoStart
+	} else {
+		w.autoBtn.Disable()
 	}
 
 	serverContainer := container.NewBorder(nil, nil, nil, copyServerBtn, w.serverAddr)
@@ -205,7 +221,8 @@ func (w *MainWindow) setupUI() {
 	}
 
 	actionContainer := container.New(layout.NewGridLayout(2), w.captureBtn, w.importOBSBtn)
-	openContainer := container.New(layout.NewGridLayout(2), liveBtn, w.obsBtn)
+	openContainer := container.New(layout.NewGridLayout(2), w.liveBtn, w.obsBtn)
+	autoContainer := container.New(layout.NewGridLayout(1), w.autoBtn)
 
 	statusContainer := container.NewHBox(
 		widget.NewIcon(theme.InfoIcon()),
@@ -221,6 +238,7 @@ func (w *MainWindow) setupUI() {
 		container.NewPadded(mainForm),
 		container.NewPadded(actionContainer),
 		container.NewPadded(openContainer),
+		container.NewPadded(autoContainer),
 		layout.NewSpacer(),
 		widget.NewSeparator(),
 		statusContainer,
