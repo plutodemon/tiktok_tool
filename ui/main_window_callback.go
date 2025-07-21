@@ -97,26 +97,36 @@ func (w *MainWindow) handleCapture() {
 
 		capture.StartCapture(
 			func(server string) {
-				w.serverAddr.SetText(server)
-				w.status.SetText("已找到推流服务器地址")
+				fyne.Do(func() {
+					w.serverAddr.SetText(server)
+					w.status.SetText("已找到推流服务器地址")
+				})
 			},
 			func(key string) {
-				w.streamKey.SetText(key)
-				w.status.SetText("已找到推流码")
+				fyne.Do(func() {
+					w.streamKey.SetText(key)
+					w.status.SetText("已找到推流码")
+				})
 			},
 			func(err error) {
-				w.status.SetText("错误: " + err.Error())
+				fyne.Do(func() {
+					w.status.SetText("错误: " + err.Error())
+				})
 			},
 			func() {
-				w.status.SetText("已停止抓包")
-				w.resetCaptureBtn()
+				fyne.Do(func() {
+					w.status.SetText("已停止抓包")
+					w.resetCaptureBtn()
+				})
 			},
 		)
 	} else {
 		// 停止抓包
 		capture.StopCapturing()
-		w.status.SetText("已停止抓包")
-		w.resetCaptureBtn()
+		fyne.Do(func() {
+			w.status.SetText("已停止抓包")
+			w.resetCaptureBtn()
+		})
 	}
 }
 
@@ -490,14 +500,18 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 	var progressError error
 	defer func() {
 		if progressError != nil {
-			progressDialog.Hide()
-			w.NewErrorDialog(progressError)
+			fyne.Do(func() {
+				progressDialog.Hide()
+				w.NewErrorDialog(progressError)
+			})
 		}
 	}()
 
 	// 步骤1：启动直播伴侣
-	progressLabel.SetText("步骤1/7: 启动直播伴侣...")
-	progressBar.SetValue(1.0 / 7.0)
+	fyne.Do(func() {
+		progressLabel.SetText("步骤1/7: 启动直播伴侣...")
+		progressBar.SetValue(1.0 / 7.0)
+	})
 	if err := w.startLiveCompanion(); err != nil {
 		progressError = err
 		return
@@ -509,8 +523,10 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 	})
 
 	// 步骤2：开始抓包
-	progressLabel.SetText("步骤2/7: 开始抓包...")
-	progressBar.SetValue(2.0 / 7.0)
+	fyne.Do(func() {
+		progressLabel.SetText("步骤2/7: 开始抓包...")
+		progressBar.SetValue(2.0 / 7.0)
+	})
 	if err := w.startCaptureForAuto(); err != nil {
 		progressError = err
 		return
@@ -522,8 +538,10 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 	})
 
 	// 步骤3：模拟点击开始直播
-	progressLabel.SetText("步骤3/7: 模拟点击开始直播...")
-	progressBar.SetValue(3.0 / 7.0)
+	fyne.Do(func() {
+		progressLabel.SetText("步骤3/7: 模拟点击开始直播...")
+		progressBar.SetValue(3.0 / 7.0)
+	})
 	if err := w.simulateClickStartLive(); err != nil {
 		progressError = err
 		return
@@ -535,27 +553,35 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 	})
 
 	// 步骤4：获取推流信息
-	progressLabel.SetText("步骤4/7: 获取推流信息...")
-	progressBar.SetValue(4.0 / 7.0)
+	fyne.Do(func() {
+		progressLabel.SetText("步骤4/7: 获取推流信息...")
+		progressBar.SetValue(4.0 / 7.0)
+	})
 	if w.serverAddr.Text == "" || w.streamKey.Text == "" {
 		progressError = fmt.Errorf("未找到推流服务器地址或推流码，请检查直播配置")
 		return
 	}
 
 	// 步骤5：导入OBS配置
-	progressLabel.SetText("步骤5/7: 导入OBS配置...")
-	progressBar.SetValue(5.0 / 7.0)
+	fyne.Do(func() {
+		progressLabel.SetText("步骤5/7: 导入OBS配置...")
+		progressBar.SetValue(5.0 / 7.0)
+	})
 	if err := w.importOBSConfigForAuto(); err != nil {
 		progressError = fmt.Errorf("导入OBS配置失败：%v", err)
 		return
 	}
 
 	// 步骤6：启动OBS
-	progressLabel.SetText("步骤6/7: 启动OBS...")
-	progressBar.SetValue(6.0 / 7.0)
+	fyne.Do(func() {
+		progressLabel.SetText("步骤6/7: 启动OBS...")
+		progressBar.SetValue(6.0 / 7.0)
+	})
 	if err := w.startOBS(); err != nil {
-		progressDialog.Hide()
-		w.NewErrorDialog(fmt.Errorf("启动OBS失败：%v", err))
+		fyne.Do(func() {
+			progressDialog.Hide()
+			w.NewErrorDialog(fmt.Errorf("启动OBS失败：%v", err))
+		})
 		return
 	}
 
@@ -565,17 +591,21 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 	})
 
 	// 步骤7：关闭直播伴侣
-	progressLabel.SetText("步骤7/7: 关闭直播伴侣...")
-	progressBar.SetValue(7.0 / 7.0)
+	fyne.Do(func() {
+		progressLabel.SetText("步骤7/7: 关闭直播伴侣...")
+		progressBar.SetValue(7.0 / 7.0)
+	})
 	if err := w.closeLiveCompanionForAuto(); err != nil {
 		progressError = err
 		return
 	}
 
 	// 完成
-	progressDialog.Hide()
-	w.status.SetText("一键开播完成！")
-	w.NewInfoDialog("一键开播完成", "一键开播流程已完成！\n\n推流配置已导入OBS，OBS已启动，直播伴侣已关闭。\n现在可以在OBS中开始推流了。")
+	fyne.Do(func() {
+		progressDialog.Hide()
+		w.status.SetText("一键开播完成！")
+		w.NewInfoDialog("一键开播完成", "一键开播流程已完成！\n\n推流配置已导入OBS，OBS已启动，直播伴侣已关闭。\n现在可以在OBS中开始推流了。")
+	})
 }
 
 // startCaptureForAuto 为自动流程开始抓包
@@ -585,17 +615,23 @@ func (w *MainWindow) startCaptureForAuto() error {
 	config.StopCapture = make(chan struct{})
 
 	// 清空数据
-	w.serverAddr.SetText("")
-	w.streamKey.SetText("")
+	fyne.Do(func() {
+		w.serverAddr.SetText("")
+		w.streamKey.SetText("")
+	})
 
 	var err error
 	// 启动抓包
 	capture.StartCapture(
 		func(server string) {
-			w.serverAddr.SetText(server)
+			fyne.Do(func() {
+				w.serverAddr.SetText(server)
+			})
 		},
 		func(streamKey string) {
-			w.streamKey.SetText(streamKey)
+			fyne.Do(func() {
+				w.streamKey.SetText(streamKey)
+			})
 		},
 		func(err error) {
 			err = fmt.Errorf("抓包过程中发生错误: %v", err)

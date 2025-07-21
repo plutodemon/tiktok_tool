@@ -173,8 +173,10 @@ func (w *SettingsWindow) downloadAutoExe() {
 		// 确保plugin目录存在
 		pluginDir := "plugin"
 		if err := os.MkdirAll(pluginDir, 0755); err != nil {
-			progressDialog.Hide()
-			w.NewErrorDialog(fmt.Errorf("创建plugin目录失败: %v", err))
+			fyne.Do(func() {
+				progressDialog.Hide()
+				w.NewErrorDialog(fmt.Errorf("创建plugin目录失败: %v", err))
+			})
 			return
 		}
 
@@ -182,53 +184,69 @@ func (w *SettingsWindow) downloadAutoExe() {
 		downloadURL := "https://github.com/plutodemon/py_win_auto/releases/download/v0.1.0/auto.exe"
 		filePath := filepath.Join(pluginDir, "auto.exe")
 
-		progressLabel.SetText("正在下载...")
+		fyne.Do(func() {
+			progressLabel.SetText("正在下载...")
+		})
 		resp, err := http.Get(downloadURL)
 		if err != nil {
-			progressDialog.Hide()
-			w.NewErrorDialog(fmt.Errorf("下载失败: %v", err))
+			fyne.Do(func() {
+				progressDialog.Hide()
+				w.NewErrorDialog(fmt.Errorf("下载失败: %v", err))
+			})
 			return
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			progressDialog.Hide()
-			w.NewErrorDialog(fmt.Errorf("下载失败: HTTP %d", resp.StatusCode))
+			fyne.Do(func() {
+				progressDialog.Hide()
+				w.NewErrorDialog(fmt.Errorf("下载失败: HTTP %d", resp.StatusCode))
+			})
 			return
 		}
 
 		// 创建目标文件
 		file, err := os.Create(filePath)
 		if err != nil {
-			progressDialog.Hide()
-			w.NewErrorDialog(fmt.Errorf("创建文件失败: %v", err))
+			fyne.Do(func() {
+				progressDialog.Hide()
+				w.NewErrorDialog(fmt.Errorf("创建文件失败: %v", err))
+			})
 			return
 		}
 		defer file.Close()
 
 		// 复制文件内容
-		progressLabel.SetText("正在保存文件...")
-		progressBar.SetValue(0.7)
+		fyne.Do(func() {
+			progressLabel.SetText("正在保存文件...")
+			progressBar.SetValue(0.7)
+		})
 		_, err = io.Copy(file, resp.Body)
 		if err != nil {
-			progressDialog.Hide()
-			w.NewErrorDialog(fmt.Errorf("保存文件失败: %v", err))
+			fyne.Do(func() {
+				progressDialog.Hide()
+				w.NewErrorDialog(fmt.Errorf("保存文件失败: %v", err))
+			})
 			return
 		}
 
 		// 下载完成
-		progressBar.SetValue(1.0)
-		progressLabel.SetText("下载完成")
+		fyne.Do(func() {
+			progressBar.SetValue(1.0)
+			progressLabel.SetText("下载完成")
+		})
 		time.Sleep(500 * time.Millisecond)
-		progressDialog.Hide()
+		fyne.Do(func() {
+			progressDialog.Hide()
 
-		// 自动设置路径
-		w.pluginScriptDownloadBtn.Disable()
-		w.pluginScriptDownloadBtn.Refresh()
-		w.pluginScriptPath.SetText(filePath)
+			// 自动设置路径
+			w.pluginScriptDownloadBtn.Disable()
+			w.pluginScriptDownloadBtn.Refresh()
+			w.pluginScriptPath.SetText(filePath)
 
-		// 显示成功消息
-		w.NewInfoDialog("下载成功", fmt.Sprintf("auto.exe已下载到:\n%s\n\n路径已自动设置到脚本路径中。", filePath))
+			// 显示成功消息
+			w.NewInfoDialog("下载成功", fmt.Sprintf("auto.exe已下载到:\n%s\n\n路径已自动设置到脚本路径中。", filePath))
+		})
 	})
 }
 
