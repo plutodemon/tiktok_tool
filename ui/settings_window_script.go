@@ -181,7 +181,7 @@ func (w *SettingsWindow) downloadAutoExe() {
 		}
 
 		// 下载文件
-		downloadURL := "https://github.com/plutodemon/py_win_auto/releases/download/v0.1.0/auto.exe"
+		downloadURL := "https://github.com/plutodemon/py_win_auto/releases/download/v0.1.1/auto.exe"
 		filePath := filepath.Join(pluginDir, "auto.exe")
 
 		fyne.Do(func() {

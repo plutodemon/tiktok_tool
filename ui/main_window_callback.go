@@ -318,7 +318,7 @@ func (w *MainWindow) handleStartLiveCompanion() {
 		return
 	}
 
-	if err := w.startLiveCompanion(); err != nil {
+	if err := w.startLiveCompanion(true); err != nil {
 		w.NewErrorDialog(err)
 		return
 	}
@@ -327,7 +327,7 @@ func (w *MainWindow) handleStartLiveCompanion() {
 }
 
 // startLiveCompanion 启动直播伴侣
-func (w *MainWindow) startLiveCompanion() error {
+func (w *MainWindow) startLiveCompanion(check bool) error {
 	liveCompanionPath := strings.TrimSpace(config.GetConfig().LiveCompanionPath)
 
 	// 检查路径是否为空
@@ -341,7 +341,7 @@ func (w *MainWindow) startLiveCompanion() error {
 	}
 
 	// 检查是否已经运行
-	if pid := isLiveCompanionRunning(); pid != -1 {
+	if pid := isLiveCompanionRunning(); check && pid != -1 {
 		return fmt.Errorf("检测到直播伴侣已经正在运行！\n请勿重复运行直播伴侣")
 	}
 
@@ -512,15 +512,10 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 		progressLabel.SetText("步骤1/7: 启动直播伴侣...")
 		progressBar.SetValue(1.0 / 7.0)
 	})
-	if err := w.startLiveCompanion(); err != nil {
+	if err := w.startLiveCompanion(false); err != nil {
 		progressError = err
 		return
 	}
-
-	// 等待直播伴侣启动
-	fyne.DoAndWait(func() {
-		time.Sleep(3 * time.Second)
-	})
 
 	// 步骤2：开始抓包
 	fyne.Do(func() {
@@ -532,11 +527,6 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 		return
 	}
 
-	// 等待抓包开始
-	fyne.DoAndWait(func() {
-		time.Sleep(3 * time.Second)
-	})
-
 	// 步骤3：模拟点击开始直播
 	fyne.Do(func() {
 		progressLabel.SetText("步骤3/7: 模拟点击开始直播...")
@@ -547,10 +537,8 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 		return
 	}
 
-	// 等待模拟点击完成
-	fyne.DoAndWait(func() {
-		time.Sleep(3 * time.Second)
-	})
+	// 等待抓包完成
+	time.Sleep(2 * time.Second)
 
 	// 步骤4：获取推流信息
 	fyne.Do(func() {
@@ -584,11 +572,6 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 		})
 		return
 	}
-
-	// 等待OBS启动
-	fyne.DoAndWait(func() {
-		time.Sleep(3 * time.Second)
-	})
 
 	// 步骤7：关闭直播伴侣
 	fyne.Do(func() {
@@ -635,7 +618,8 @@ func (w *MainWindow) startCaptureForAuto() error {
 		},
 		func(err error) {
 			err = fmt.Errorf("抓包过程中发生错误: %v", err)
-		}, nil,
+		},
+		func() {},
 	)
 
 	return err
@@ -643,13 +627,22 @@ func (w *MainWindow) startCaptureForAuto() error {
 
 // simulateClickStartLive 使用auto.exe模拟点击开始直播按钮
 func (w *MainWindow) simulateClickStartLive() error {
+	// success, err := lkit.BringWindowToFront("直播伴侣")
+	// if err != nil || !success {
+	// 	return fmt.Errorf("置顶直播伴侣窗口失败: %v", err)
+	// }
+
 	autoExePath := strings.TrimSpace(config.GetConfig().PluginScriptPath)
 	args := []string{"--app", "直播伴侣", "--control", "开始直播", "--type", "Text", "--click"}
 
-	_, err := lkit.RunAutoTool(autoExePath, args)
+	result, err := lkit.RunAutoTool(autoExePath, args)
 	if err != nil {
 		return fmt.Errorf("模拟点击开始直播失败：%v", err)
 	}
+	if !result.Success {
+		return fmt.Errorf("模拟点击开始直播失败：%s", result.Error)
+	}
+
 	return nil
 }
 
@@ -671,23 +664,34 @@ func (w *MainWindow) importOBSConfigForAuto() error {
 
 // closeLiveCompanionForAuto 为自动流程关闭直播伴侣
 func (w *MainWindow) closeLiveCompanionForAuto() error {
+	// success, err := lkit.BringWindowToFront("直播伴侣")
+	// if err != nil || !success {
+	// 	return fmt.Errorf("置顶直播伴侣窗口失败: %v", err)
+	// }
+
 	autoExePath := strings.TrimSpace(config.GetConfig().PluginScriptPath)
 	args := []string{"--app", "直播伴侣", "--control", "关闭", "--type", "Button", "--click"}
 
-	_, err := lkit.RunAutoTool(autoExePath, args)
+	result, err := lkit.RunAutoTool(autoExePath, args)
 	if err != nil {
 		return fmt.Errorf("模拟关闭直播伴侣失败：%v", err)
 	}
 
-	fyne.DoAndWait(func() {
-		time.Sleep(3 * time.Second)
-	})
+	if !result.Success {
+		return fmt.Errorf("模拟关闭直播伴侣失败：%s", result.Error)
+	}
+
+	time.Sleep(3 * time.Second)
 
 	args = []string{"--app", "直播伴侣", "--control", "确定", "--type", "Button", "--click"}
 
-	_, err = lkit.RunAutoTool(autoExePath, args)
+	result, err = lkit.RunAutoTool(autoExePath, args)
 	if err != nil {
 		return fmt.Errorf("模拟关闭直播伴侣失败：%v", err)
+	}
+
+	if !result.Success {
+		return fmt.Errorf("模拟关闭直播伴侣失败：%s", result.Error)
 	}
 
 	return nil

@@ -1,7 +1,9 @@
 package lkit
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +15,7 @@ import (
 	"unsafe"
 
 	"github.com/shirou/gopsutil/v4/process"
+	"golang.org/x/sys/windows"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 )
@@ -163,8 +166,32 @@ type AutoResult struct {
 	DumpFile     string `json:"dump_file,omitempty"`
 }
 
+// RunAutoTool 执行外部工具程序并解析JSON输出
+// exePath: 可执行文件路径
+// args: 命令行参数
+// 返回值: 解析后的AutoResult结构体和可能的错误
 func RunAutoTool(exePath string, args []string) (*AutoResult, error) {
-	cmd := exec.Command(exePath, args...)
+	return RunAutoToolWithTimeout(exePath, args, 30*time.Second)
+}
+
+// RunAutoToolWithTimeout 执行外部工具程序并解析JSON输出，支持超时控制
+// exePath: 可执行文件路径
+// args: 命令行参数
+// timeout: 超时时间，如果为0则不设置超时
+// 返回值: 解析后的AutoResult结构体和可能的错误
+func RunAutoToolWithTimeout(exePath string, args []string, timeout time.Duration) (*AutoResult, error) {
+	var cmd *exec.Cmd
+	var ctx context.Context
+	var cancel context.CancelFunc
+
+	// 如果设置了超时时间，使用带超时的context
+	if timeout > 0 {
+		ctx, cancel = context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		cmd = exec.CommandContext(ctx, exePath, args...)
+	} else {
+		cmd = exec.Command(exePath, args...)
+	}
 
 	// 设置工作目录
 	cmd.Dir = filepath.Dir(exePath)
@@ -172,16 +199,91 @@ func RunAutoTool(exePath string, args []string) (*AutoResult, error) {
 	// 执行命令并获取输出
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		// 检查是否是超时错误
+		if ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return nil, fmt.Errorf("执行命令超时 (%v): %s", timeout, exePath)
+		}
 		return nil, fmt.Errorf("执行命令失败: %v, 输出: %s", err, string(output))
 	}
 
 	// 解析JSON输出
 	var result AutoResult
-
 	err = json.Unmarshal(output, &result)
 	if err != nil {
 		return nil, fmt.Errorf("解析JSON失败: %v, 原始输出: %s", err, output)
 	}
 
 	return &result, nil
+}
+
+var (
+	user32                  = windows.NewLazySystemDLL("user32.dll")
+	procEnumWindows         = user32.NewProc("EnumWindows")
+	procGetWindowTextW      = user32.NewProc("GetWindowTextW")
+	procIsWindowVisible     = user32.NewProc("IsWindowVisible")
+	procSetForegroundWindow = user32.NewProc("SetForegroundWindow")
+	procShowWindow          = user32.NewProc("ShowWindow")
+)
+
+const (
+	SW_SHOW    = 5
+	SW_RESTORE = 9
+)
+
+// BringWindowToFront 将指定标题的窗口置顶到前台
+// windowTitle: 要搜索的窗口标题（支持部分匹配）
+// 返回值: 成功返回true，失败返回false和错误信息
+func BringWindowToFront(windowTitle string) (bool, error) {
+	if windowTitle == "" {
+		return false, fmt.Errorf("窗口标题不能为空")
+	}
+
+	var targetHwnd uintptr
+	var foundTitle string
+
+	// 枚举所有窗口的回调函数
+	cb := syscall.NewCallback(func(hwnd uintptr, lparam uintptr) uintptr {
+		buf := make([]uint16, 512) // 增加缓冲区大小
+		ret, _, _ := procGetWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+
+		if ret == 0 {
+			return 1 // 继续枚举
+		}
+
+		title := syscall.UTF16ToString(buf)
+		if title != "" && strings.Contains(title, windowTitle) {
+			visible, _, _ := procIsWindowVisible.Call(hwnd)
+			if visible != 0 {
+				foundTitle = title
+				targetHwnd = hwnd
+				return 0 // 停止枚举
+			}
+		}
+		return 1 // 继续枚举
+	})
+
+	// 枚举所有窗口
+	ret, _, _ := procEnumWindows.Call(cb, 0)
+	if ret == 0 {
+		return false, fmt.Errorf("枚举窗口失败")
+	}
+
+	if targetHwnd == 0 {
+		return false, fmt.Errorf("未找到包含标题 '%s' 的可见窗口", windowTitle)
+	}
+
+	// 先尝试恢复窗口（如果是最小化状态）
+	ret, _, _ = procShowWindow.Call(targetHwnd, SW_RESTORE)
+	if ret == 0 {
+		// 如果恢复失败，尝试显示窗口
+		procShowWindow.Call(targetHwnd, SW_SHOW)
+	}
+
+	// 设置窗口到前台
+	ret, _, err := procSetForegroundWindow.Call(targetHwnd)
+	if ret == 0 {
+		return false, fmt.Errorf("设置窗口到前台失败: %v (窗口: %s)", err, foundTitle)
+	}
+
+	return true, nil
 }
