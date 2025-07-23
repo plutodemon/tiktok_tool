@@ -264,12 +264,8 @@ func BringWindowToFront(windowTitle string) (bool, error) {
 
 	// 枚举所有窗口
 	ret, _, _ := procEnumWindows.Call(cb, 0)
-	if ret == 0 {
+	if ret == 0 && targetHwnd == 0 {
 		return false, fmt.Errorf("枚举窗口失败")
-	}
-
-	if targetHwnd == 0 {
-		return false, fmt.Errorf("未找到包含标题 '%s' 的可见窗口", windowTitle)
 	}
 
 	// 先尝试恢复窗口（如果是最小化状态）

@@ -34,6 +34,10 @@ func StopCapturing() {
 	config.IsCapturing = false
 	close(config.StopCapture)
 
+	// 重置状态变量
+	allReadyGetServer = false
+	allReadyGetStream = false
+
 	config.HandleMutex.Lock()
 	for _, handle := range config.Handles {
 		handle.Close()
@@ -44,6 +48,9 @@ func StopCapturing() {
 
 // StartCapture 开始抓包
 func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onError func(error), onGetAll func()) {
+	// 重置状态变量
+	allReadyGetServer = false
+	allReadyGetStream = false
 	allDevices, err := pcap.FindAllDevs()
 	if err != nil {
 		onError(err)
@@ -158,7 +165,6 @@ func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFou
 					if config.IsDebug {
 						llog.DebugF("找到推流码字符串: %s", streamStr)
 					}
-					break
 				}
 			}
 

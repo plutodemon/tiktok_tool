@@ -88,9 +88,9 @@ func (w *MainWindow) handleCapture() {
 			}
 			llog.Debug("服务器地址正则表达式: ", serverRegexCompile)
 
-			keyRegex := config.DefaultConfig.StreamKeyRegex
-			if len(config.GetConfig().StreamKeyRegex) > 0 && config.GetConfig().StreamKeyRegex != keyRegex {
-				keyRegex = config.GetConfig().StreamKeyRegex
+			keyRegex := config.GetConfig().StreamKeyRegex
+			if len(keyRegex) == 0 {
+				keyRegex = config.DefaultConfig.StreamKeyRegex
 			}
 			llog.Debug("推流码正则表达式: ", keyRegex)
 		}
@@ -168,6 +168,18 @@ func isOBSRunning() int32 {
 	return -1
 }
 
+func isLiveCompanionRunning() int32 {
+	pids, err := lkit.IsProcessRunning("直播伴侣.exe")
+	if err != nil {
+		llog.Error("检查直播伴侣进程失败:", err)
+		return -1
+	}
+	if pids[0] > 0 {
+		return pids[0]
+	}
+	return -1
+}
+
 // handleWindowClose 处理窗口关闭事件
 // 根据配置决定是最小化到托盘还是退出程序
 func (w *MainWindow) handleWindowClose() {
@@ -179,18 +191,6 @@ func (w *MainWindow) handleWindowClose() {
 		// 正常退出程序
 		w.window.Close()
 	}
-}
-
-func isLiveCompanionRunning() int32 {
-	pids, err := lkit.IsProcessRunning("直播伴侣.exe")
-	if err != nil {
-		llog.Error("检查直播伴侣进程失败:", err)
-		return -1
-	}
-	if pids[0] > 0 {
-		return pids[0]
-	}
-	return -1
 }
 
 // handleImportOBS 处理导入OBS配置
@@ -341,9 +341,13 @@ func (w *MainWindow) startLiveCompanion(check bool) error {
 	}
 
 	// 检查是否已经运行
-	if pid := isLiveCompanionRunning(); check && pid != -1 {
-		return fmt.Errorf("检测到直播伴侣已经正在运行！\n请勿重复运行直播伴侣")
-	}
+	// if pid := isLiveCompanionRunning(); check && pid != -1 {
+	// 	success, err := lkit.BringWindowToFront("直播伴侣")
+	// 	if err != nil || !success {
+	// 		return fmt.Errorf("检测到直播伴侣已经正在运行！\n置顶直播伴侣窗口失败: %v", err)
+	// 	}
+	// 	return fmt.Errorf("检测到直播伴侣已经正在运行！\n请勿重复运行直播伴侣(已置顶窗口)")
+	// }
 
 	if lkit.IsAdmin {
 		// 已经是管理员权限，直接启动
@@ -370,7 +374,7 @@ func (w *MainWindow) startLiveCompanion(check bool) error {
 
 // handleStartOBS 处理启动OBS
 func (w *MainWindow) handleStartOBS() {
-	if err := w.startOBS(); err != nil {
+	if err := w.startOBS(true); err != nil {
 		w.NewErrorDialog(err)
 		return
 	}
@@ -379,7 +383,7 @@ func (w *MainWindow) handleStartOBS() {
 }
 
 // startOBSForAuto 为自动流程启动OBS
-func (w *MainWindow) startOBS() error {
+func (w *MainWindow) startOBS(check bool) error {
 	obsPath := strings.TrimSpace(config.GetConfig().OBSLaunchPath)
 	if obsPath == "" {
 		return fmt.Errorf("请先在设置中配置OBS启动路径")
@@ -392,7 +396,14 @@ func (w *MainWindow) startOBS() error {
 
 	// 检查OBS是否正在运行
 	if pid := isOBSRunning(); pid != -1 {
-		return fmt.Errorf("检测到OBS已经正在运行！\n请勿重复运行OBS")
+		success, err := lkit.BringWindowToFront("OBS")
+		if err != nil || !success {
+			return fmt.Errorf("检测到OBS已经正在运行！\n置顶OBS窗口失败: %v", err)
+		}
+		if check {
+			return fmt.Errorf("检测到OBS已经正在运行！\n请勿重复运行OBS(已置顶窗口)")
+		}
+		return nil
 	}
 
 	// 获取OBS安装目录作为工作目录
@@ -420,7 +431,8 @@ func (w *MainWindow) handleAutoStart() {
 
 	// 显示确认对话框
 	confirmDialog := *w.NewConfirmDialog("一键开播确认",
-		"即将执行一键开播流程：\n1. 启动直播伴侣\n2. 开始抓包\n3. 模拟点击开始直播\n4. 获取推流信息\n5. 导入OBS配置\n6. 启动OBS\n7. 关闭直播伴侣\n\n是否继续？",
+		"即将执行一键开播流程：\n\n启动直播伴侣 -> 开始抓包 -> 模拟点击开始直播 -> 获取推流信息 ->"+
+			" 导入OBS配置 -> 启动OBS -> 关闭直播伴侣\n\n是否继续？",
 		func(confirmed bool) {
 			if !confirmed {
 				return
@@ -499,17 +511,18 @@ func (w *MainWindow) executeAutoStartFlow() {
 func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabel *widget.Label, progressBar *widget.ProgressBar) {
 	var progressError error
 	defer func() {
-		if progressError != nil {
-			fyne.Do(func() {
-				progressDialog.Hide()
-				w.NewErrorDialog(progressError)
-			})
+		if progressError == nil {
+			return
 		}
+		fyne.Do(func() {
+			progressDialog.Hide()
+			w.NewErrorDialog(progressError)
+		})
 	}()
 
-	// 步骤1：启动直播伴侣
+	// 启动直播伴侣
 	fyne.Do(func() {
-		progressLabel.SetText("步骤1/7: 启动直播伴侣...")
+		progressLabel.SetText("正在启动直播伴侣...")
 		progressBar.SetValue(1.0 / 7.0)
 	})
 	if err := w.startLiveCompanion(false); err != nil {
@@ -517,55 +530,62 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 		return
 	}
 
-	// 步骤2：开始抓包
+	// 开始抓包
 	fyne.Do(func() {
-		progressLabel.SetText("步骤2/7: 开始抓包...")
+		progressLabel.SetText("正在抓包...")
 		progressBar.SetValue(2.0 / 7.0)
 	})
-	if err := w.startCaptureForAuto(); err != nil {
+
+	onGetAll := make(chan struct{})
+	channelClosed := false
+	if err := w.startCaptureForAuto(func() {
+		if !channelClosed {
+			channelClosed = true
+			close(onGetAll)
+		}
+	}); err != nil {
 		progressError = err
 		return
 	}
 
-	// 步骤3：模拟点击开始直播
+	// 模拟点击开始直播
 	fyne.Do(func() {
-		progressLabel.SetText("步骤3/7: 模拟点击开始直播...")
+		progressLabel.SetText("正在模拟点击开始直播...")
 		progressBar.SetValue(3.0 / 7.0)
 	})
+
 	if err := w.simulateClickStartLive(); err != nil {
 		progressError = err
 		return
 	}
 
-	// 等待抓包完成
-	time.Sleep(2 * time.Second)
-
-	// 步骤4：获取推流信息
-	fyne.Do(func() {
-		progressLabel.SetText("步骤4/7: 获取推流信息...")
-		progressBar.SetValue(4.0 / 7.0)
-	})
-	if w.serverAddr.Text == "" || w.streamKey.Text == "" {
-		progressError = fmt.Errorf("未找到推流服务器地址或推流码，请检查直播配置")
+	timeout := time.After(20 * time.Second)
+	select {
+	case <-onGetAll:
+		llog.Debug("成功获取到推流信息: ", w.serverAddr.Text, w.streamKey.Text)
+	case <-timeout:
+		progressError = fmt.Errorf("获取推流信息超时，请检查网络连接或重试")
 		return
 	}
 
-	// 步骤5：导入OBS配置
+	time.Sleep(500 * time.Millisecond)
+
+	// 导入OBS配置
 	fyne.Do(func() {
-		progressLabel.SetText("步骤5/7: 导入OBS配置...")
-		progressBar.SetValue(5.0 / 7.0)
+		progressLabel.SetText("正在导入OBS配置...")
+		progressBar.SetValue(4.0 / 7.0)
 	})
 	if err := w.importOBSConfigForAuto(); err != nil {
 		progressError = fmt.Errorf("导入OBS配置失败：%v", err)
 		return
 	}
 
-	// 步骤6：启动OBS
+	// 启动OBS
 	fyne.Do(func() {
-		progressLabel.SetText("步骤6/7: 启动OBS...")
-		progressBar.SetValue(6.0 / 7.0)
+		progressLabel.SetText("正在启动OBS...")
+		progressBar.SetValue(5.0 / 7.0)
 	})
-	if err := w.startOBS(); err != nil {
+	if err := w.startOBS(false); err != nil {
 		fyne.Do(func() {
 			progressDialog.Hide()
 			w.NewErrorDialog(fmt.Errorf("启动OBS失败：%v", err))
@@ -573,10 +593,10 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 		return
 	}
 
-	// 步骤7：关闭直播伴侣
+	// 关闭直播伴侣
 	fyne.Do(func() {
-		progressLabel.SetText("步骤7/7: 关闭直播伴侣...")
-		progressBar.SetValue(7.0 / 7.0)
+		progressLabel.SetText("正在关闭直播伴侣...")
+		progressBar.SetValue(6.0 / 7.0)
 	})
 	if err := w.closeLiveCompanionForAuto(); err != nil {
 		progressError = err
@@ -585,14 +605,14 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 
 	// 完成
 	fyne.Do(func() {
-		progressDialog.Hide()
+		progressLabel.SetText("一键开播完成！")
+		progressBar.SetValue(1)
 		w.status.SetText("一键开播完成！")
-		w.NewInfoDialog("一键开播完成", "一键开播流程已完成！\n\n推流配置已导入OBS，OBS已启动，直播伴侣已关闭。\n现在可以在OBS中开始推流了。")
 	})
 }
 
 // startCaptureForAuto 为自动流程开始抓包
-func (w *MainWindow) startCaptureForAuto() error {
+func (w *MainWindow) startCaptureForAuto(onGetAll func()) error {
 	// 开始抓包
 	config.IsCapturing = true
 	config.StopCapture = make(chan struct{})
@@ -607,19 +627,19 @@ func (w *MainWindow) startCaptureForAuto() error {
 	// 启动抓包
 	capture.StartCapture(
 		func(server string) {
-			fyne.Do(func() {
+			fyne.DoAndWait(func() {
 				w.serverAddr.SetText(server)
 			})
 		},
 		func(streamKey string) {
-			fyne.Do(func() {
+			fyne.DoAndWait(func() {
 				w.streamKey.SetText(streamKey)
 			})
 		},
 		func(err error) {
 			err = fmt.Errorf("抓包过程中发生错误: %v", err)
 		},
-		func() {},
+		onGetAll,
 	)
 
 	return err
@@ -627,10 +647,10 @@ func (w *MainWindow) startCaptureForAuto() error {
 
 // simulateClickStartLive 使用auto.exe模拟点击开始直播按钮
 func (w *MainWindow) simulateClickStartLive() error {
-	// success, err := lkit.BringWindowToFront("直播伴侣")
-	// if err != nil || !success {
-	// 	return fmt.Errorf("置顶直播伴侣窗口失败: %v", err)
-	// }
+	success, err := lkit.BringWindowToFront("直播伴侣")
+	if err != nil || !success {
+		return fmt.Errorf("置顶直播伴侣窗口失败: %v", err)
+	}
 
 	autoExePath := strings.TrimSpace(config.GetConfig().PluginScriptPath)
 	args := []string{"--app", "直播伴侣", "--control", "开始直播", "--type", "Text", "--click"}
@@ -664,10 +684,10 @@ func (w *MainWindow) importOBSConfigForAuto() error {
 
 // closeLiveCompanionForAuto 为自动流程关闭直播伴侣
 func (w *MainWindow) closeLiveCompanionForAuto() error {
-	// success, err := lkit.BringWindowToFront("直播伴侣")
-	// if err != nil || !success {
-	// 	return fmt.Errorf("置顶直播伴侣窗口失败: %v", err)
-	// }
+	success, err := lkit.BringWindowToFront("直播伴侣")
+	if err != nil || !success {
+		return fmt.Errorf("置顶直播伴侣窗口失败: %v", err)
+	}
 
 	autoExePath := strings.TrimSpace(config.GetConfig().PluginScriptPath)
 	args := []string{"--app", "直播伴侣", "--control", "关闭", "--type", "Button", "--click"}
