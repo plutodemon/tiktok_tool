@@ -1,16 +1,17 @@
 package lkit
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
+	"tiktok_tool/config"
+	"tiktok_tool/llog"
 	"time"
 	"unsafe"
 
@@ -20,11 +21,63 @@ import (
 	"golang.org/x/text/transform"
 )
 
+const MaxUInt32 = 0xffffffff         // DEC 4294967295
+const MaxInt32 = 0x7fffffff          // DEC 2147483647
+const MaxInt64 = 0x7fffffffffffffff  // 9223372036854775807
+const MaxUInt64 = 0xffffffffffffffff // 18446744073709551615
+const MaxInt64Half = 0x7fffffffffffffff / 2
+
 // SigChan 创建一个通道来接收信号
 var SigChan = make(chan os.Signal)
 
 func AnyToStr(v interface{}) string {
 	return fmt.Sprint(v)
+}
+
+func Str2Int32(str string) int32 {
+	num := Str2Int64(str)
+	if num > MaxInt32 {
+		llog.Error("Str2Int32 overflow", str)
+	}
+	return int32(num)
+}
+func TryParseStr2Int64(str string) (int64, error) {
+	i64, err := strconv.ParseInt(str, 10, 0)
+	if err != nil {
+		return 0, err
+	}
+	return i64, nil
+}
+
+func Str2Int64(str string) int64 {
+	i64, err := TryParseStr2Int64(str)
+	if err != nil {
+		llog.Error(err.Error(), 0, "[Str2Int64]", "["+str+"]")
+		return 0
+	}
+	return i64
+}
+func Str2UInt64(str string) uint64 {
+	return uint64(Str2Int64(str))
+}
+
+func Str2UInt32(str string) uint32 {
+	num := Str2Int64(str)
+	if num > MaxUInt32 {
+		llog.Error("Str2Int32 overflow", str)
+	}
+	return uint32(num)
+}
+
+func PathExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
 }
 
 func SliceToStrList[k comparable](v []k) []string {
@@ -171,38 +224,18 @@ type AutoResult struct {
 // args: 命令行参数
 // 返回值: 解析后的AutoResult结构体和可能的错误
 func RunAutoTool(exePath string, args []string) (*AutoResult, error) {
-	return RunAutoToolWithTimeout(exePath, args, 30*time.Second)
-}
-
-// RunAutoToolWithTimeout 执行外部工具程序并解析JSON输出，支持超时控制
-// exePath: 可执行文件路径
-// args: 命令行参数
-// timeout: 超时时间，如果为0则不设置超时
-// 返回值: 解析后的AutoResult结构体和可能的错误
-func RunAutoToolWithTimeout(exePath string, args []string, timeout time.Duration) (*AutoResult, error) {
-	var cmd *exec.Cmd
-	var ctx context.Context
-	var cancel context.CancelFunc
-
-	// 如果设置了超时时间，使用带超时的context
-	if timeout > 0 {
-		ctx, cancel = context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-		cmd = exec.CommandContext(ctx, exePath, args...)
-	} else {
-		cmd = exec.Command(exePath, args...)
-	}
-
+	args = append(args,
+		"--check-interval", AnyToStr(config.GetConfig().PluginCheckInterval),
+		"--wait-after-found", AnyToStr(config.GetConfig().PluginWaitAfterFound),
+		"--timeout", AnyToStr(config.GetConfig().PluginTimeout),
+	)
+	cmd := exec.Command(exePath, args...)
 	// 设置工作目录
 	cmd.Dir = filepath.Dir(exePath)
 
 	// 执行命令并获取输出
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// 检查是否是超时错误
-		if ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return nil, fmt.Errorf("执行命令超时 (%v): %s", timeout, exePath)
-		}
 		return nil, fmt.Errorf("执行命令失败: %v, 输出: %s", err, string(output))
 	}
 

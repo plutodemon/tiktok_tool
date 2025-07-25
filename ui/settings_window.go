@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
+	"tiktok_tool/lkit"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -12,6 +15,35 @@ import (
 
 	"tiktok_tool/config"
 )
+
+type NumericalEntry struct {
+	widget.Entry
+}
+
+func NewNumericalEntry() *NumericalEntry {
+	entry := &NumericalEntry{}
+	entry.ExtendBaseWidget(entry)
+	return entry
+}
+
+func (e *NumericalEntry) TypedRune(r rune) {
+	if r >= '0' && r <= '9' {
+		e.Entry.TypedRune(r)
+	}
+}
+
+func (e *NumericalEntry) TypedShortcut(shortcut fyne.Shortcut) {
+	paste, ok := shortcut.(*fyne.ShortcutPaste)
+	if !ok {
+		e.Entry.TypedShortcut(shortcut)
+		return
+	}
+
+	content := paste.Clipboard.Content()
+	if _, err := strconv.ParseFloat(content, 64); err == nil {
+		e.Entry.TypedShortcut(shortcut)
+	}
+}
 
 type SettingsWindow struct {
 	window        fyne.Window
@@ -33,6 +65,9 @@ type SettingsWindow struct {
 	// 脚本路径
 	pluginScriptPath        *widget.Entry
 	pluginScriptDownloadBtn *widget.Button
+	pluginCheckInterval     *NumericalEntry
+	pluginWaitAfterFound    *NumericalEntry
+	pluginTimeout           *NumericalEntry
 
 	// 日志配置
 	logToFile *widget.Check
@@ -87,60 +122,73 @@ func (w *SettingsWindow) setupUI() {
 	w.networkList.SetSelected(w.selectedDevices)
 
 	// 创建正则表达式输入框
+	cfg := config.GetConfig()
 	w.serverRegex = widget.NewMultiLineEntry()
-	w.serverRegex.SetText(config.GetConfig().ServerRegex)
+	w.serverRegex.SetText(cfg.ServerRegex)
 	w.serverRegex.Wrapping = fyne.TextWrapBreak
 	w.serverRegex.Resize(fyne.NewSize(w.serverRegex.Size().Width, 80))
 
 	w.streamKeyRegex = widget.NewMultiLineEntry()
-	w.streamKeyRegex.SetText(config.GetConfig().StreamKeyRegex)
+	w.streamKeyRegex.SetText(cfg.StreamKeyRegex)
 	w.streamKeyRegex.Wrapping = fyne.TextWrapBreak
 	w.streamKeyRegex.Resize(fyne.NewSize(w.streamKeyRegex.Size().Width, 80))
 
 	// 创建OBS启动路径输入框
 	w.obsLaunchPath = widget.NewEntry()
-	w.obsLaunchPath.SetText(config.GetConfig().OBSLaunchPath)
+	w.obsLaunchPath.SetText(cfg.OBSLaunchPath)
 	w.obsLaunchPath.SetPlaceHolder("请选择OBS启动路径 (obs64.exe)")
 	w.obsLaunchPath.Disable()
 
 	// 创建OBS配置路径输入框
 	w.obsConfigPath = widget.NewEntry()
-	w.obsConfigPath.SetText(config.GetConfig().OBSConfigPath)
+	w.obsConfigPath.SetText(cfg.OBSConfigPath)
 	w.obsConfigPath.SetPlaceHolder("请选择OBS配置文件路径 (service.json)")
 	w.obsConfigPath.Disable()
 
 	// 创建直播伴侣路径输入框
 	w.liveCompanionPath = widget.NewEntry()
-	w.liveCompanionPath.SetText(config.GetConfig().LiveCompanionPath)
+	w.liveCompanionPath.SetText(cfg.LiveCompanionPath)
 	w.liveCompanionPath.SetPlaceHolder("请选择直播伴侣启动路径 (直播伴侣 Launcher.exe)")
 	w.liveCompanionPath.Disable()
 
 	// 创建自动化插件脚本路径输入框
 	w.pluginScriptPath = widget.NewEntry()
-	w.pluginScriptPath.SetText(config.GetConfig().PluginScriptPath)
+	w.pluginScriptPath.SetText(cfg.PluginScriptPath)
 	w.pluginScriptPath.SetPlaceHolder("请选择自动化插件脚本路径 (auto.exe)")
 	w.pluginScriptPath.Disable()
+
+	// 创建插件相关配置控件
+	w.pluginCheckInterval = NewNumericalEntry()
+	w.pluginCheckInterval.SetText(lkit.AnyToStr(cfg.PluginCheckInterval))
+	w.pluginCheckInterval.SetPlaceHolder("插件检查间隔 (秒)")
+
+	w.pluginWaitAfterFound = NewNumericalEntry()
+	w.pluginWaitAfterFound.SetText(lkit.AnyToStr(cfg.PluginWaitAfterFound))
+	w.pluginWaitAfterFound.SetPlaceHolder("插件检测到后等待时间 (秒)")
+
+	w.pluginTimeout = NewNumericalEntry()
+	w.pluginTimeout.SetText(lkit.AnyToStr(cfg.PluginTimeout))
+	w.pluginTimeout.SetPlaceHolder("插件超时时间 (秒)")
 
 	// 创建下载按钮
 	w.pluginScriptDownloadBtn = widget.NewButtonWithIcon("下载auto.exe", theme.DownloadIcon(), w.downloadAutoExe)
 
 	// 创建日志配置控件
-	currentConfig := config.GetConfig()
 	w.logToFile = widget.NewCheck("输出到文件", nil)
-	if currentConfig.LogConfig != nil {
-		w.logToFile.SetChecked(currentConfig.LogConfig.File)
+	if cfg.LogConfig != nil {
+		w.logToFile.SetChecked(cfg.LogConfig.File)
 	}
 
 	w.logLevel = widget.NewSelect([]string{"debug", "info", "warn", "error"}, nil)
-	if currentConfig.LogConfig != nil {
-		w.logLevel.SetSelected(currentConfig.LogConfig.Level)
+	if cfg.LogConfig != nil {
+		w.logLevel.SetSelected(cfg.LogConfig.Level)
 	} else {
 		w.logLevel.SetSelected("info")
 	}
 
 	// 创建窗口行为配置控件
 	w.minimizeOnClose = widget.NewCheck("关闭窗口时最小化到托盘", nil)
-	w.minimizeOnClose.SetChecked(currentConfig.MinimizeOnClose)
+	w.minimizeOnClose.SetChecked(cfg.MinimizeOnClose)
 
 	// 创建标签页内容
 	regexTab := w.createRegexTab()
@@ -182,7 +230,14 @@ func (w *SettingsWindow) setupUI() {
 	w.window.SetContent(container.NewBorder(nil, buttonContainer, nil, nil, tabs))
 }
 
+// saveSettings 保存设置并进行验证
 func (w *SettingsWindow) saveSettings(checks []string) {
+	// 验证插件设置
+	if err := w.validatePluginSettings(); err != nil {
+		w.NewErrorDialog(err)
+		return
+	}
+
 	// 获取当前配置以保留其他日志设置
 	currentConfig := config.GetConfig()
 	logConfig := currentConfig.LogConfig
@@ -197,15 +252,18 @@ func (w *SettingsWindow) saveSettings(checks []string) {
 
 	// 创建新的设置
 	newSettings := config.Config{
-		NetworkInterfaces: checks,
-		ServerRegex:       strings.TrimSpace(w.serverRegex.Text),
-		StreamKeyRegex:    strings.TrimSpace(w.streamKeyRegex.Text),
-		OBSLaunchPath:     strings.TrimSpace(w.obsLaunchPath.Text),
-		OBSConfigPath:     strings.TrimSpace(w.obsConfigPath.Text),
-		LiveCompanionPath: strings.TrimSpace(w.liveCompanionPath.Text),
-		PluginScriptPath:  strings.TrimSpace(w.pluginScriptPath.Text),
-		MinimizeOnClose:   w.minimizeOnClose.Checked,
-		LogConfig:         &updatedLogConfig,
+		NetworkInterfaces:    checks,
+		ServerRegex:          strings.TrimSpace(w.serverRegex.Text),
+		StreamKeyRegex:       strings.TrimSpace(w.streamKeyRegex.Text),
+		OBSLaunchPath:        strings.TrimSpace(w.obsLaunchPath.Text),
+		OBSConfigPath:        strings.TrimSpace(w.obsConfigPath.Text),
+		LiveCompanionPath:    strings.TrimSpace(w.liveCompanionPath.Text),
+		PluginScriptPath:     strings.TrimSpace(w.pluginScriptPath.Text),
+		PluginCheckInterval:  lkit.Str2Int32(w.pluginCheckInterval.Text),
+		PluginWaitAfterFound: lkit.Str2Int32(w.pluginWaitAfterFound.Text),
+		PluginTimeout:        lkit.Str2Int32(w.pluginTimeout.Text),
+		MinimizeOnClose:      w.minimizeOnClose.Checked,
+		LogConfig:            &updatedLogConfig,
 	}
 
 	// 保存设置
@@ -216,4 +274,42 @@ func (w *SettingsWindow) saveSettings(checks []string) {
 
 	w.close()
 	w.saveCallback("设置已保存，请重启软件以应用更改")
+}
+
+// validatePluginSettings 验证插件设置
+func (w *SettingsWindow) validatePluginSettings() error {
+	// 验证插件检查间隔
+	checkIntervalText := strings.TrimSpace(w.pluginCheckInterval.Text)
+	if checkIntervalText == "" {
+		return fmt.Errorf("插件检查间隔不能为空")
+	}
+	checkInterval := lkit.Str2Int32(checkIntervalText)
+	if checkInterval < 1 {
+		return fmt.Errorf("插件检查间隔不可小于1秒")
+	}
+
+	// 验证等待时间
+	waitTimeText := strings.TrimSpace(w.pluginWaitAfterFound.Text)
+	if waitTimeText == "" {
+		return fmt.Errorf("等待时间不可为空")
+	}
+	waitTime := lkit.Str2Int32(waitTimeText)
+	if waitTime < 0 {
+		return fmt.Errorf("等待时间不能为负数")
+	}
+
+	// 验证超时时间
+	timeoutText := strings.TrimSpace(w.pluginTimeout.Text)
+	if timeoutText == "" {
+		return fmt.Errorf("超时时间不能为空")
+	}
+	timeout := lkit.Str2Int32(timeoutText)
+	if timeout < 5 {
+		return fmt.Errorf("超时时间不可小于5秒")
+	}
+	if timeout > 300 {
+		return fmt.Errorf("超时时间不可大于300秒")
+	}
+
+	return nil
 }

@@ -33,14 +33,17 @@ func init() {
 }
 
 type Config struct {
-	NetworkInterfaces []string `toml:"network_interfaces"`  // 网卡名称列表
-	ServerRegex       string   `toml:"server_regex"`        // 服务器地址正则表达式
-	StreamKeyRegex    string   `toml:"stream_key_regex"`    // 推流码正则表达式
-	OBSLaunchPath     string   `toml:"obs_launch_path"`     // OBS启动路径
-	OBSConfigPath     string   `toml:"obs_config_path"`     // OBS配置文件路径
-	LiveCompanionPath string   `toml:"live_companion_path"` // 直播伴侣启动路径
-	PluginScriptPath  string   `toml:"plugin_script_path"`  // 自动化插件脚本路径
-	MinimizeOnClose   bool     `toml:"minimize_on_close"`   // 关闭窗口时最小化到系统托盘而不退出
+	NetworkInterfaces    []string `toml:"network_interfaces"`      // 网卡名称列表
+	ServerRegex          string   `toml:"server_regex"`            // 服务器地址正则表达式
+	StreamKeyRegex       string   `toml:"stream_key_regex"`        // 推流码正则表达式
+	OBSLaunchPath        string   `toml:"obs_launch_path"`         // OBS启动路径
+	OBSConfigPath        string   `toml:"obs_config_path"`         // OBS配置文件路径
+	LiveCompanionPath    string   `toml:"live_companion_path"`     // 直播伴侣启动路径
+	PluginScriptPath     string   `toml:"plugin_script_path"`      // 自动化插件脚本路径
+	PluginCheckInterval  int32    `toml:"plugin_check_interval"`   // 插件检查间隔（秒）
+	PluginWaitAfterFound int32    `toml:"plugin_wait_after_found"` // 插件找到后等待时间（秒）
+	PluginTimeout        int32    `toml:"plugin_timeout"`          // 插件超时时间（秒）
+	MinimizeOnClose      bool     `toml:"minimize_on_close"`       // 关闭窗口时最小化到系统托盘而不退出
 
 	// 日志设置
 	LogConfig *llog.LogSetting `toml:"log"`
@@ -48,15 +51,18 @@ type Config struct {
 
 // DefaultConfig 默认配置
 var DefaultConfig = Config{
-	NetworkInterfaces: []string{},
-	ServerRegex:       `(rtmp://push-rtmp-[a-zA-Z0-9\-]+\.douyincdn\.com/thirdgame)`,
-	StreamKeyRegex:    `(stream-\d+\?(?:[^&]+=[^&]*&)*expire=\d{10}&sign=[^&]+)`,
-	OBSLaunchPath:     "",    // 默认为空，需要用户手动配置
-	OBSConfigPath:     "",    // 默认为空，需要用户手动配置
-	LiveCompanionPath: "",    // 默认为空，需要用户手动配置
-	PluginScriptPath:  "",    // 默认为空，需要用户手动配置
-	MinimizeOnClose:   false, // 默认关闭窗口时退出程序
-	LogConfig:         llog.DefaultConfig,
+	NetworkInterfaces:    []string{},
+	ServerRegex:          `(rtmp://push-rtmp-[a-zA-Z0-9\-]+\.douyincdn\.com/thirdgame)`,
+	StreamKeyRegex:       `(stream-\d+\?(?:[^&]+=[^&]*&)*expire=\d{10}&sign=[^&]+)`,
+	OBSLaunchPath:        "", // 默认为空，需要用户手动配置
+	OBSConfigPath:        "", // 默认为空，需要用户手动配置
+	LiveCompanionPath:    "", // 默认为空，需要用户手动配置
+	PluginScriptPath:     "", // 默认为空，需要用户手动配置
+	PluginCheckInterval:  1,
+	PluginWaitAfterFound: 5,
+	PluginTimeout:        20,
+	MinimizeOnClose:      false, // 默认关闭窗口时退出程序
+	LogConfig:            llog.DefaultConfig,
 }
 
 // LoadConfig 加载配置文件

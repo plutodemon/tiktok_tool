@@ -59,9 +59,26 @@ func (w *SettingsWindow) createScriptTab() fyne.CanvasObject {
 		clearBtn,
 	)
 
+	// 插件设置
+	resetCheckIntervalBtn := widget.NewButtonWithIcon("重置间隔", theme.MediaReplayIcon(), func() {
+		w.pluginCheckInterval.SetText(lkit.AnyToStr(config.DefaultConfig.PluginCheckInterval))
+	})
+	resetWaitAfterFoundBtn := widget.NewButtonWithIcon("重置等待", theme.MediaReplayIcon(), func() {
+		w.pluginWaitAfterFound.SetText(lkit.AnyToStr(config.DefaultConfig.PluginWaitAfterFound))
+	})
+	resetTimeoutBtn := widget.NewButtonWithIcon("重置超时", theme.MediaReplayIcon(), func() {
+		w.pluginTimeout.SetText(lkit.AnyToStr(config.DefaultConfig.PluginTimeout))
+	})
+	pluginTime := widget.NewForm(
+		widget.NewFormItem("插件检查间隔", container.NewBorder(nil, nil, nil, resetCheckIntervalBtn, w.pluginCheckInterval)),
+		widget.NewFormItem("等待时间", container.NewBorder(nil, nil, nil, resetWaitAfterFoundBtn, w.pluginWaitAfterFound)),
+		widget.NewFormItem("超时时间", container.NewBorder(nil, nil, nil, resetTimeoutBtn, w.pluginTimeout)),
+	)
+
 	// 创建表单
 	scriptForm := widget.NewForm(
-		widget.NewFormItem("自动化插件脚本路径", pluginScriptPathContainer),
+		widget.NewFormItem("自动化插件路径", pluginScriptPathContainer),
+		widget.NewFormItem("插件设置", pluginTime),
 		widget.NewFormItem("插件管理", pluginManageContainer),
 	)
 
