@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 
 	"tiktok_tool/config"
@@ -18,6 +19,11 @@ import (
 var (
 	allReadyGetServer = false
 	allReadyGetStream = false
+
+	netCfg config.Config
+
+	SrcIPAddrPort = ""
+	DstIPAddrPort = ""
 )
 
 // CheckNpcapInstalled 检查是否安装了Npcap
@@ -37,6 +43,7 @@ func StopCapturing() {
 	// 重置状态变量
 	allReadyGetServer = false
 	allReadyGetStream = false
+	netCfg = config.GetConfig()
 
 	config.HandleMutex.Lock()
 	for _, handle := range config.Handles {
@@ -51,6 +58,7 @@ func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onE
 	// 重置状态变量
 	allReadyGetServer = false
 	allReadyGetStream = false
+	netCfg = config.GetConfig()
 	allDevices, err := pcap.FindAllDevs()
 	if err != nil {
 		onError(err)
@@ -59,7 +67,7 @@ func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onE
 
 	devices := make([]pcap.Interface, 0)
 	for _, device := range allDevices {
-		if len(config.GetConfig().NetworkInterfaces) == 0 {
+		if len(netCfg.NetworkInterfaces) == 0 {
 			if strings.Contains(device.Description, "Bluetooth") ||
 				strings.Contains(device.Description, "loopback") {
 				continue
@@ -67,7 +75,7 @@ func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onE
 			devices = append(devices, device)
 			continue
 		}
-		if slices.Contains(config.GetConfig().NetworkInterfaces, device.Description) {
+		if slices.Contains(netCfg.NetworkInterfaces, device.Description) {
 			devices = append(devices, device)
 		}
 	}
@@ -127,17 +135,8 @@ func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFou
 			payload := string(appLayer.Payload())
 
 			if !allReadyGetServer && strings.Contains(strings.ToLower(payload), "rtmp://") {
-				serverRegexCompile := config.GetConfig().ServerRegex
-				if len(serverRegexCompile) == 0 {
-					serverRegexCompile = config.DefaultConfig.ServerRegex
-				}
-
-				serverRegex := regexp.MustCompile(serverRegexCompile)
+				serverRegex := regexp.MustCompile(netCfg.ServerRegex)
 				matches := serverRegex.FindStringSubmatch(payload)
-
-				if config.IsDebug {
-					llog.DebugF("服务器地址匹配结果: %v", matches)
-				}
 
 				if len(matches) >= 1 {
 					serverUrl := matches[1]
@@ -150,12 +149,7 @@ func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFou
 			}
 
 			if !allReadyGetStream {
-				streamKeyRegexCompile := config.GetConfig().StreamKeyRegex
-				if len(streamKeyRegexCompile) == 0 {
-					streamKeyRegexCompile = config.DefaultConfig.StreamKeyRegex
-				}
-
-				streamRegex := regexp.MustCompile(streamKeyRegexCompile)
+				streamRegex := regexp.MustCompile(netCfg.StreamKeyRegex)
 				matches := streamRegex.FindStringSubmatch(payload)
 
 				if len(matches) >= 1 {
@@ -165,6 +159,9 @@ func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFou
 					if config.IsDebug {
 						llog.DebugF("找到推流码字符串: %s", streamStr)
 					}
+					lkit.SafeGo(func() {
+						getDstInfo(packet)
+					})
 				}
 			}
 
@@ -174,4 +171,23 @@ func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFou
 			}
 		}
 	}
+}
+
+func getDstInfo(packet gopacket.Packet) {
+	ip4Layer := packet.Layer(layers.LayerTypeIPv4)
+	tcpLayer := packet.Layer(layers.LayerTypeTCP)
+	if ip4Layer == nil || tcpLayer == nil {
+		return
+	}
+	ipv4, ok1 := ip4Layer.(*layers.IPv4)
+	tcp, ok2 := tcpLayer.(*layers.TCP)
+	if !ok1 || !ok2 {
+		return
+	}
+
+	SrcIPAddrPort = lkit.GetAddr(ipv4.SrcIP, tcp.SrcPort)
+	DstIPAddrPort = lkit.GetAddr(ipv4.DstIP, tcp.DstPort)
+
+	llog.Info("本地IP: ", SrcIPAddrPort)
+	llog.Info("推流目标IP: ", DstIPAddrPort)
 }

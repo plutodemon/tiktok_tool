@@ -133,6 +133,7 @@ func (w *SettingsWindow) resetToDefaults(alreadyCheck *[]string) {
 		}
 		// 恢复窗口行为配置默认值
 		w.minimizeOnClose.SetChecked(config.DefaultConfig.MinimizeOnClose)
+		w.openLiveWhenStart.SetChecked(config.DefaultConfig.OpenLiveWhenStart)
 		*alreadyCheck = nil // 清空已选网卡
 
 		w.close()

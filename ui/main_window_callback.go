@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -143,13 +144,22 @@ func (w *MainWindow) restartApp() {
 	}
 
 	cmd := exec.Command(exe)
+
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	}
+
 	err = cmd.Start()
 	if err != nil {
 		w.NewErrorDialog(err)
 		return
 	}
 
-	w.app.Quit()
+	time.AfterFunc(100*time.Millisecond, func() {
+		fyne.DoAndWait(func() {
+			w.app.Quit()
+		})
+	})
 }
 
 // isOBSRunning 检查OBS是否正在运行
@@ -497,23 +507,36 @@ func (w *MainWindow) executeAutoStartFlow() {
 	progressBar := widget.NewProgressBar()
 	progressBar.SetValue(0.0)
 
-	progressDialog := w.NewCustomWithoutButtons("一键开播", container.NewVBox(
+	progressDialog := w.NewCustomDialog("一键开播", "", container.NewVBox(
 		progressLabel,
 		progressBar,
 	))
+	closeButton := widget.NewButton("关闭", func() {
+		progressDialog.Hide()
+	})
+	closeButton.Disable()
+	progressDialog.SetButtons([]fyne.CanvasObject{closeButton})
+
+	onSuccess := func() {
+		capture.StopCapturing()
+		closeButton.Enable()
+		closeButton.Refresh()
+		w.status.SetText("一键开播流程已完成！")
+	}
 
 	// 在后台执行流程
 	lkit.SafeGo(func() {
-		w.autoStart(progressDialog, progressLabel, progressBar)
+		w.autoStart(progressDialog, progressLabel, progressBar, onSuccess)
 	})
 }
 
-func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabel *widget.Label, progressBar *widget.ProgressBar) {
+func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabel *widget.Label, progressBar *widget.ProgressBar, onSuccess func()) {
 	var progressError error
 	defer func() {
 		if progressError == nil {
 			return
 		}
+		capture.StopCapturing()
 		fyne.Do(func() {
 			progressDialog.Hide()
 			w.NewErrorDialog(progressError)
@@ -564,7 +587,7 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 	case <-onGetAll:
 		llog.Debug("成功获取到推流信息: ", w.serverAddr.Text, w.streamKey.Text)
 	case <-timeout:
-		progressError = fmt.Errorf("获取推流信息超时，请检查网络连接或重试")
+		progressError = fmt.Errorf("获取推流信息超时，请检查配置文件或检查网络连接或重试")
 		return
 	}
 
@@ -586,10 +609,7 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 		progressBar.SetValue(5.0 / 7.0)
 	})
 	if err := w.startOBS(false); err != nil {
-		fyne.Do(func() {
-			progressDialog.Hide()
-			w.NewErrorDialog(fmt.Errorf("启动OBS失败：%v", err))
-		})
+		progressError = err
 		return
 	}
 
@@ -607,7 +627,7 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 	fyne.Do(func() {
 		progressLabel.SetText("一键开播完成！")
 		progressBar.SetValue(1)
-		w.status.SetText("一键开播完成！")
+		onSuccess()
 	})
 }
 
@@ -653,14 +673,18 @@ func (w *MainWindow) simulateClickStartLive() error {
 	}
 
 	autoExePath := strings.TrimSpace(config.GetConfig().PluginScriptPath)
-	args := []string{"--app", "直播伴侣", "--control", "开始直播", "--type", "Text", "--click"}
+	args := []string{"--app", "直播伴侣", "--control", "开始直播", "--type", "Text"}
 
 	result, err := lkit.RunAutoTool(autoExePath, args)
 	if err != nil {
-		return fmt.Errorf("模拟点击开始直播失败：%v", err)
+		return fmt.Errorf("获取开始直播按钮位置失败：%v", err)
 	}
 	if !result.Success {
-		return fmt.Errorf("模拟点击开始直播失败：%s", result.Error)
+		return fmt.Errorf("获取开始直播按钮位置失败：%s", result.Error)
+	}
+	err = lkit.SimulateLeftClick(result.Center.X, result.Center.Y)
+	if err != nil {
+		return fmt.Errorf("模拟点击开始直播按钮失败：%v", err)
 	}
 
 	return nil
@@ -690,28 +714,36 @@ func (w *MainWindow) closeLiveCompanionForAuto() error {
 	}
 
 	autoExePath := strings.TrimSpace(config.GetConfig().PluginScriptPath)
-	args := []string{"--app", "直播伴侣", "--control", "关闭", "--type", "Button", "--click"}
+	args := []string{"--app", "直播伴侣", "--control", "关闭", "--type", "Button"}
 
 	result, err := lkit.RunAutoTool(autoExePath, args)
 	if err != nil {
-		return fmt.Errorf("模拟关闭直播伴侣失败：%v", err)
+		return fmt.Errorf("获取关闭按钮位置失败：%v", err)
 	}
 
 	if !result.Success {
-		return fmt.Errorf("模拟关闭直播伴侣失败：%s", result.Error)
+		return fmt.Errorf("获取关闭按钮位置失败：%s", result.Error)
+	}
+	err = lkit.SimulateLeftClick(result.Center.X, result.Center.Y)
+	if err != nil {
+		return fmt.Errorf("模拟点击关闭按钮失败：%v", err)
 	}
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(1 * time.Second)
 
-	args = []string{"--app", "直播伴侣", "--control", "确定", "--type", "Button", "--click"}
+	args = []string{"--app", "直播伴侣", "--control", "确定", "--type", "Button"}
 
 	result, err = lkit.RunAutoTool(autoExePath, args)
 	if err != nil {
-		return fmt.Errorf("模拟关闭直播伴侣失败：%v", err)
+		return fmt.Errorf("获取关闭按钮位置失败：%v", err)
 	}
 
 	if !result.Success {
-		return fmt.Errorf("模拟关闭直播伴侣失败：%s", result.Error)
+		return fmt.Errorf("获取关闭按钮位置失败：%s", result.Error)
+	}
+	err = lkit.SimulateLeftClick(result.Center.X, result.Center.Y)
+	if err != nil {
+		return fmt.Errorf("模拟点击关闭按钮失败：%v", err)
 	}
 
 	return nil

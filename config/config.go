@@ -44,6 +44,7 @@ type Config struct {
 	PluginWaitAfterFound int32    `toml:"plugin_wait_after_found"` // 插件找到后等待时间（秒）
 	PluginTimeout        int32    `toml:"plugin_timeout"`          // 插件超时时间（秒）
 	MinimizeOnClose      bool     `toml:"minimize_on_close"`       // 关闭窗口时最小化到系统托盘而不退出
+	OpenLiveWhenStart    bool     `toml:"open_live_when_start"`    // 启动时自动打开直播伴侣
 
 	// 日志设置
 	LogConfig *llog.LogSetting `toml:"log"`
@@ -53,7 +54,7 @@ type Config struct {
 var DefaultConfig = Config{
 	NetworkInterfaces:    []string{},
 	ServerRegex:          `(rtmp://push-rtmp-[a-zA-Z0-9\-]+\.douyincdn\.com/thirdgame)`,
-	StreamKeyRegex:       `(stream-\d+\?(?:[^&]+=[^&]*&)*expire=\d{10}&sign=[^&]+)`,
+	StreamKeyRegex:       `(stream-\d+\?(?:[^&]+=[^&]*&)*expire=\d{10}&sign=[^&]+.*\z)`,
 	OBSLaunchPath:        "", // 默认为空，需要用户手动配置
 	OBSConfigPath:        "", // 默认为空，需要用户手动配置
 	LiveCompanionPath:    "", // 默认为空，需要用户手动配置
@@ -62,6 +63,7 @@ var DefaultConfig = Config{
 	PluginWaitAfterFound: 5,
 	PluginTimeout:        20,
 	MinimizeOnClose:      false, // 默认关闭窗口时退出程序
+	OpenLiveWhenStart:    true,  // 默认启动时打开直播伴侣
 	LogConfig:            llog.DefaultConfig,
 }
 

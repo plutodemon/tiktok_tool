@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
 	"tiktok_tool/lkit"
 
 	"fyne.io/fyne/v2"
@@ -74,7 +75,8 @@ type SettingsWindow struct {
 	logLevel  *widget.Select
 
 	// 窗口行为配置
-	minimizeOnClose *widget.Check
+	minimizeOnClose   *widget.Check
+	openLiveWhenStart *widget.Check
 }
 
 func ShowSettingsWindow(parent fyne.App, closeCallback func(), saveCallback func(string)) {
@@ -190,6 +192,9 @@ func (w *SettingsWindow) setupUI() {
 	w.minimizeOnClose = widget.NewCheck("关闭窗口时最小化到托盘", nil)
 	w.minimizeOnClose.SetChecked(cfg.MinimizeOnClose)
 
+	w.openLiveWhenStart = widget.NewCheck("启动时打开直播伴侣", nil)
+	w.openLiveWhenStart.SetChecked(cfg.OpenLiveWhenStart)
+
 	// 创建标签页内容
 	regexTab := w.createRegexTab()
 	networkTab := w.createNetworkTab()
@@ -263,6 +268,7 @@ func (w *SettingsWindow) saveSettings(checks []string) {
 		PluginWaitAfterFound: lkit.Str2Int32(w.pluginWaitAfterFound.Text),
 		PluginTimeout:        lkit.Str2Int32(w.pluginTimeout.Text),
 		MinimizeOnClose:      w.minimizeOnClose.Checked,
+		OpenLiveWhenStart:    w.openLiveWhenStart.Checked,
 		LogConfig:            &updatedLogConfig,
 	}
 

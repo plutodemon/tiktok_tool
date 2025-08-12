@@ -15,6 +15,7 @@ import (
 	"tiktok_tool/capture"
 	"tiktok_tool/config"
 	"tiktok_tool/lkit"
+	"tiktok_tool/llog"
 )
 
 var (
@@ -99,10 +100,28 @@ func NewMainWindow() {
 		streamKey:  widget.NewEntry(),
 	}
 
+	lkit.SafeGo(func() {
+		w.startTask()
+	})
+
 	w.addSystemTray()
 	window.SetCloseIntercept(w.handleWindowClose)
 	w.setupUI()
 	window.ShowAndRun()
+}
+
+func (w *MainWindow) startTask() {
+	if config.GetConfig().OpenLiveWhenStart == false {
+		return
+	}
+	err := w.startLiveCompanion(false)
+	if err == nil {
+		return
+	}
+	llog.Warn("程序启动时, 启动直播伴侣失败: %v", err)
+	fyne.Do(func() {
+		w.status.SetText("程序启动时, 启动直播伴侣失败")
+	})
 }
 
 // 系统托盘
@@ -253,6 +272,9 @@ func (w *MainWindow) settingWindow() {
 		dialog := w.NewCustomDialog("保存成功", "重启",
 			container.NewCenter(widget.NewLabel(text)),
 		)
-		dialog.SetOnClosed(w.restartApp)
+		closeButton := widget.NewButton("关闭程序", w.app.Quit)
+		restartButton := widget.NewButton("重启程序", w.restartApp)
+		restartButton.Importance = widget.HighImportance
+		dialog.SetButtons([]fyne.CanvasObject{closeButton, restartButton})
 	})
 }
