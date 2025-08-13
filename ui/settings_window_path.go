@@ -73,7 +73,7 @@ func (w *SettingsWindow) createPathTab(alreadyCheck *[]string) fyne.CanvasObject
 
 	// 创建恢复默认配置按钮
 	resetBtn := widget.NewButtonWithIcon("恢复默认配置", theme.HistoryIcon(), func() {
-		w.resetToDefaults(alreadyCheck)
+		w.resetToDefaults()
 	})
 
 	// 添加说明文本
@@ -94,13 +94,13 @@ func (w *SettingsWindow) createPathTab(alreadyCheck *[]string) fyne.CanvasObject
 }
 
 // resetToDefaults 重置为默认设置
-func (w *SettingsWindow) resetToDefaults(alreadyCheck *[]string) {
+func (w *SettingsWindow) resetToDefaults() {
 	w.NewConfirmDialog("确认", "确定要恢复默认配置吗？", func(ok bool) {
 		if !ok {
 			return
 		}
-		// 检查并删除配置文件
-		configPath := "config/tiktok_tool_cfg.toml"
+
+		configPath := filepath.Join(config.CfgFilePath, config.CfgFileName)
 		if _, err := os.Stat(configPath); err == nil {
 			// 配置文件在 config 目录中
 			if err := os.Remove(configPath); err != nil {
@@ -109,32 +109,14 @@ func (w *SettingsWindow) resetToDefaults(alreadyCheck *[]string) {
 			}
 		} else {
 			// 检查当前目录
-			configPath = "tiktok_tool_cfg.toml"
-			if _, err := os.Stat(configPath); err == nil {
-				if err := os.Remove(configPath); err != nil {
+			configPath = filepath.Join(config.CfgFileName)
+			if _, err = os.Stat(configPath); err == nil {
+				if err = os.Remove(configPath); err != nil {
 					w.NewErrorDialog(fmt.Errorf("删除配置文件失败: %v", err))
 					return
 				}
 			}
 		}
-
-		// 恢复默认配置
-		w.networkList.SetSelected(nil) // 清空网卡选择
-		w.serverRegex.SetText(config.DefaultConfig.ServerRegex)
-		w.streamKeyRegex.SetText(config.DefaultConfig.StreamKeyRegex)
-		w.obsLaunchPath.SetText(config.DefaultConfig.OBSLaunchPath)
-		w.obsConfigPath.SetText(config.DefaultConfig.OBSConfigPath)
-		w.liveCompanionPath.SetText(config.DefaultConfig.LiveCompanionPath)
-		w.pluginScriptPath.SetText(config.DefaultConfig.PluginScriptPath)
-		// 恢复日志配置默认值
-		if config.DefaultConfig.LogConfig != nil {
-			w.logToFile.SetChecked(config.DefaultConfig.LogConfig.File)
-			w.logLevel.SetSelected(config.DefaultConfig.LogConfig.Level)
-		}
-		// 恢复窗口行为配置默认值
-		w.minimizeOnClose.SetChecked(config.DefaultConfig.MinimizeOnClose)
-		w.openLiveWhenStart.SetChecked(config.DefaultConfig.OpenLiveWhenStart)
-		*alreadyCheck = nil // 清空已选网卡
 
 		w.close()
 		w.saveCallback("已恢复默认配置，请重启软件以应用更改")
@@ -160,7 +142,7 @@ func (w *SettingsWindow) browseOBSConfig() {
 	fileDialog.SetDismissText("取消选择")
 
 	for {
-		if path := config.GetConfig().OBSConfigPath; path != "" {
+		if path := config.GetConfig().PathSettings.OBSConfigPath; path != "" {
 			pathDir := lkit.GetPathDir(path)
 			if _, err := os.Stat(pathDir); err == nil {
 				if uri := storage.NewFileURI(pathDir); uri != nil {
@@ -247,7 +229,7 @@ func (w *SettingsWindow) browseLiveCompanionConfig() {
 	fileDialog.SetConfirmText("确定选择")
 	fileDialog.SetDismissText("取消选择")
 
-	if path := config.GetConfig().LiveCompanionPath; path != "" {
+	if path := config.GetConfig().PathSettings.LiveCompanionPath; path != "" {
 		pathDir := lkit.GetPathDir(path)
 		if _, err := os.Stat(pathDir); err == nil {
 			if uri := storage.NewFileURI(pathDir); uri != nil {
@@ -268,22 +250,24 @@ func (w *SettingsWindow) autoDetectLiveCompanionConfig() {
 		container.NewCenter(widget.NewLabel("正在搜索直播伴侣安装路径，请稍候...")),
 	)
 
-	resultChan := make(chan string)
-
 	lkit.SafeGo(func() {
-		resultChan <- lkit.FindFileInAllDrives("直播伴侣 Launcher.exe")
-	})
-
-	select {
-	case result := <-resultChan:
-		progressDialog.Hide()
+		result, title, info := "", "", ""
+		defer func() {
+			fyne.Do(func() {
+				progressDialog.Hide()
+				w.liveCompanionPath.SetText(result)
+				w.NewInfoDialog(title, info)
+			})
+		}()
+		result = lkit.FindFileInAllDrives("直播伴侣 Launcher.exe")
 		if result == "" {
-			w.NewInfoDialog("检测结果", "未找到直播伴侣安装路径。\n\n可能的原因：\n1. 抖音直播伴侣未安装\n2. 安装在非标准位置\n3. 文件名与预期不符\n\n请尝试手动浏览选择。")
+			title = "检测失败"
+			info = "未找到直播伴侣安装路径。\n\n可能的原因：\n1. 抖音直播伴侣未安装\n2. 安装在非标准位置\n3. 文件名与预期不符\n\n请尝试手动浏览选择。"
 			return
 		}
-		w.liveCompanionPath.SetText(result)
-		w.NewInfoDialog("检测成功", fmt.Sprintf("已自动检测到直播伴侣启动路径：\n%s", result))
-	}
+		title = "检测成功"
+		info = fmt.Sprintf("已自动检测到直播伴侣启动路径：\n%s", result)
+	})
 }
 
 // browseOBSLaunchConfig 浏览选择OBS启动文件
@@ -304,7 +288,7 @@ func (w *SettingsWindow) browseOBSLaunchConfig() {
 	fileDialog.SetConfirmText("确定选择")
 	fileDialog.SetDismissText("取消选择")
 
-	if path := config.GetConfig().OBSLaunchPath; path != "" {
+	if path := config.GetConfig().PathSettings.OBSLaunchPath; path != "" {
 		pathDir := lkit.GetPathDir(path)
 		if _, err := os.Stat(pathDir); err == nil {
 			if uri := storage.NewFileURI(pathDir); uri != nil {

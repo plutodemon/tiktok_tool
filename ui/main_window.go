@@ -31,6 +31,10 @@ var (
 	LiveIcon         []byte
 	LiveIconResource = fyne.NewStaticResource("liveIcon", LiveIcon)
 
+	//go:embed img/live_dis.png
+	LiveIconDis         []byte
+	LiveIconResourceDis = fyne.NewStaticResource("liveIconDis", LiveIconDis)
+
 	//go:embed img/OBS.png
 	OBSIcon         []byte
 	OBSIconResource = fyne.NewStaticResource("OBSIcon", OBSIcon)
@@ -49,6 +53,7 @@ type MainWindow struct {
 	app        fyne.App
 	serverAddr *widget.Entry
 	streamKey  *widget.Entry
+	ipAddr     *widget.Entry
 
 	captureBtn   *widget.Button
 	importOBSBtn *widget.Button
@@ -66,12 +71,15 @@ type ChineseTheme struct{}
 func (ChineseTheme) Font(fyne.TextStyle) fyne.Resource {
 	return resourceFont
 }
+
 func (ChineseTheme) Color(n fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
 	return theme.DefaultTheme().Color(n, v)
 }
+
 func (ChineseTheme) Icon(n fyne.ThemeIconName) fyne.Resource {
 	return theme.DefaultTheme().Icon(n)
 }
+
 func (ChineseTheme) Size(n fyne.ThemeSizeName) float32 {
 	return theme.DefaultTheme().Size(n)
 }
@@ -98,6 +106,7 @@ func NewMainWindow() {
 		status:     widget.NewLabel("等待开始抓包..."),
 		serverAddr: widget.NewEntry(),
 		streamKey:  widget.NewEntry(),
+		ipAddr:     widget.NewEntry(),
 	}
 
 	lkit.SafeGo(func() {
@@ -111,14 +120,14 @@ func NewMainWindow() {
 }
 
 func (w *MainWindow) startTask() {
-	if config.GetConfig().OpenLiveWhenStart == false {
+	if config.GetConfig().BaseSettings.OpenLiveWhenStart == false {
 		return
 	}
 	err := w.startLiveCompanion(false)
 	if err == nil {
 		return
 	}
-	llog.Warn("程序启动时, 启动直播伴侣失败: %v", err)
+	llog.WarnF("程序启动时, 启动直播伴侣失败: %v", err)
 	fyne.Do(func() {
 		w.status.SetText("程序启动时, 启动直播伴侣失败")
 	})
@@ -134,6 +143,7 @@ func (w *MainWindow) addSystemTray() {
 	menuItem1 := fyne.NewMenuItem("显示主窗口", func() {
 		w.window.Show()
 	})
+	menuItem1.Icon = TikTokIconResource
 	menuItem2 := fyne.NewMenuItem("启动直播伴侣", w.handleStartLiveCompanion)
 	menuItem2.Disabled = !lkit.IsAdmin
 	menuItem2.Icon = LiveIconResource
@@ -154,6 +164,9 @@ func (w *MainWindow) setupUI() {
 	w.streamKey.SetPlaceHolder("推流码")
 	w.streamKey.Resize(fyne.NewSize(200, w.streamKey.MinSize().Height))
 	w.streamKey.Disable()
+	w.ipAddr.SetPlaceHolder("推流IP地址")
+	w.ipAddr.Resize(fyne.NewSize(200, w.ipAddr.MinSize().Height))
+	w.ipAddr.Disable()
 
 	// 复制按钮
 	copyServerBtn := widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
@@ -174,6 +187,15 @@ func (w *MainWindow) setupUI() {
 		w.status.SetText("已复制推流码")
 	})
 
+	copyIpBtn := widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
+		if w.ipAddr.Text == "" {
+			w.status.SetText("推流IP地址为空")
+			return
+		}
+		w.window.Clipboard().SetContent(w.ipAddr.Text)
+		w.status.SetText("已复制推流IP地址")
+	})
+
 	cfg := config.GetConfig()
 
 	// 抓包按钮
@@ -182,26 +204,31 @@ func (w *MainWindow) setupUI() {
 
 	// 导入OBS配置按钮
 	w.importOBSBtn = widget.NewButtonWithIcon("导入OBS", theme.DocumentSaveIcon(), w.handleImportOBS)
-	if cfg.OBSConfigPath == "" {
+	if cfg.PathSettings.OBSConfigPath == "" {
 		w.importOBSBtn.Disable()
 	}
 
 	// 启动直播伴侣按钮
 	w.liveBtn = widget.NewButtonWithIcon("启动直播伴侣", LiveIconResource, w.handleStartLiveCompanion)
-	if cfg.LiveCompanionPath == "" {
+	if cfg.PathSettings.LiveCompanionPath == "" {
 		w.liveBtn.Disable()
+		w.liveBtn.SetIcon(LiveIconResourceDis)
 	}
 
 	// 启动OBS
 	w.obsBtn = widget.NewButtonWithIcon("启动OBS", OBSIconResource, w.handleStartOBS)
-	if cfg.OBSLaunchPath == "" {
+	if cfg.PathSettings.OBSLaunchPath == "" {
 		w.obsBtn.Disable()
 		w.obsBtn.SetIcon(OBSIconResourceDis)
 	}
 
 	// 自动推流按钮
 	w.autoBtn = widget.NewButtonWithIcon("一键开播", TikTokIconResourceDis, nil)
-	if lkit.IsAdmin && cfg.OBSConfigPath != "" && cfg.LiveCompanionPath != "" && cfg.OBSLaunchPath != "" {
+	if lkit.IsAdmin &&
+		cfg.PathSettings.OBSConfigPath != "" &&
+		cfg.PathSettings.LiveCompanionPath != "" &&
+		cfg.PathSettings.OBSLaunchPath != "" &&
+		cfg.PathSettings.PluginScriptPath != "" {
 		w.autoBtn.SetIcon(TikTokIconResource)
 		w.autoBtn.OnTapped = w.handleAutoStart
 	} else {
@@ -210,10 +237,12 @@ func (w *MainWindow) setupUI() {
 
 	serverContainer := container.NewBorder(nil, nil, nil, copyServerBtn, w.serverAddr)
 	streamContainer := container.NewBorder(nil, nil, nil, copyStreamBtn, w.streamKey)
+	ipContainer := container.NewBorder(nil, nil, nil, copyIpBtn, w.ipAddr)
 
 	mainForm := widget.NewForm(
 		widget.NewFormItem("服务器地址", serverContainer),
 		widget.NewFormItem("推流码", streamContainer),
+		widget.NewFormItem("推流IP地址", ipContainer),
 	)
 
 	// 重启按钮

@@ -38,7 +38,7 @@ func (w *SettingsWindow) createScriptTab() fyne.CanvasObject {
 	})
 
 	// 创建下载按钮
-	if config.GetConfig().PluginScriptPath != "" {
+	if config.GetConfig().PathSettings.PluginScriptPath != "" {
 		w.pluginScriptDownloadBtn.Disable()
 	} else {
 		w.pluginScriptDownloadBtn.Importance = widget.SuccessImportance
@@ -60,14 +60,15 @@ func (w *SettingsWindow) createScriptTab() fyne.CanvasObject {
 	)
 
 	// 插件设置
+	defaultConfig := config.DefaultConfig.ScriptSettings
 	resetCheckIntervalBtn := widget.NewButtonWithIcon("重置间隔", theme.MediaReplayIcon(), func() {
-		w.pluginCheckInterval.SetText(lkit.AnyToStr(config.DefaultConfig.PluginCheckInterval))
+		w.pluginCheckInterval.SetText(lkit.AnyToStr(defaultConfig.PluginCheckInterval))
 	})
 	resetWaitAfterFoundBtn := widget.NewButtonWithIcon("重置等待", theme.MediaReplayIcon(), func() {
-		w.pluginWaitAfterFound.SetText(lkit.AnyToStr(config.DefaultConfig.PluginWaitAfterFound))
+		w.pluginWaitAfterFound.SetText(lkit.AnyToStr(defaultConfig.PluginWaitAfterFound))
 	})
 	resetTimeoutBtn := widget.NewButtonWithIcon("重置超时", theme.MediaReplayIcon(), func() {
-		w.pluginTimeout.SetText(lkit.AnyToStr(config.DefaultConfig.PluginTimeout))
+		w.pluginTimeout.SetText(lkit.AnyToStr(defaultConfig.PluginTimeout))
 	})
 	pluginTime := widget.NewForm(
 		widget.NewFormItem("插件检查间隔", container.NewBorder(nil, nil, nil, resetCheckIntervalBtn, w.pluginCheckInterval)),
@@ -288,7 +289,7 @@ func (w *SettingsWindow) browsePluginScriptConfig() {
 	fileDialog.SetDismissText("取消选择")
 
 	for {
-		if path := config.GetConfig().PluginScriptPath; path != "" {
+		if path := config.GetConfig().PathSettings.PluginScriptPath; path != "" {
 			pathDir := lkit.GetPathDir(path)
 			if _, err := os.Stat(pathDir); err == nil {
 				if uri := storage.NewFileURI(pathDir); uri != nil {

@@ -177,10 +177,11 @@ type AutoResult struct {
 // args: 命令行参数
 // 返回值: 解析后的AutoResult结构体和可能的错误
 func RunAutoTool(exePath string, args []string) (*AutoResult, error) {
+	cfg := config.GetConfig().ScriptSettings
 	args = append(args,
-		"--check-interval", AnyToStr(config.GetConfig().PluginCheckInterval),
-		"--wait-after-found", AnyToStr(config.GetConfig().PluginWaitAfterFound),
-		"--timeout", AnyToStr(config.GetConfig().PluginTimeout),
+		"--check-interval", AnyToStr(cfg.PluginCheckInterval),
+		"--wait-after-found", AnyToStr(cfg.PluginWaitAfterFound),
+		"--timeout", AnyToStr(cfg.PluginTimeout),
 	)
 	cmd := exec.Command(exePath, args...)
 	// 设置工作目录

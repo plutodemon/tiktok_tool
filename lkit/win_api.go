@@ -2,10 +2,11 @@ package lkit
 
 import (
 	"fmt"
-	"golang.org/x/sys/windows"
 	"strings"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var IsAdmin bool

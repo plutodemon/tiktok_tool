@@ -90,7 +90,7 @@ func ShowSettingsWindow(parent fyne.App, closeCallback func(), saveCallback func
 		window:          settingsWindow,
 		closeCallback:   closeCallback,
 		saveCallback:    saveCallback,
-		selectedDevices: config.GetConfig().NetworkInterfaces,
+		selectedDevices: config.GetConfig().BaseSettings.NetworkInterfaces,
 	}
 
 	settingsWindow.SetCloseIntercept(func() {
@@ -126,50 +126,50 @@ func (w *SettingsWindow) setupUI() {
 	// 创建正则表达式输入框
 	cfg := config.GetConfig()
 	w.serverRegex = widget.NewMultiLineEntry()
-	w.serverRegex.SetText(cfg.ServerRegex)
+	w.serverRegex.SetText(cfg.BaseSettings.ServerRegex)
 	w.serverRegex.Wrapping = fyne.TextWrapBreak
 	w.serverRegex.Resize(fyne.NewSize(w.serverRegex.Size().Width, 80))
 
 	w.streamKeyRegex = widget.NewMultiLineEntry()
-	w.streamKeyRegex.SetText(cfg.StreamKeyRegex)
+	w.streamKeyRegex.SetText(cfg.BaseSettings.StreamKeyRegex)
 	w.streamKeyRegex.Wrapping = fyne.TextWrapBreak
 	w.streamKeyRegex.Resize(fyne.NewSize(w.streamKeyRegex.Size().Width, 80))
 
 	// 创建OBS启动路径输入框
 	w.obsLaunchPath = widget.NewEntry()
-	w.obsLaunchPath.SetText(cfg.OBSLaunchPath)
+	w.obsLaunchPath.SetText(cfg.PathSettings.OBSLaunchPath)
 	w.obsLaunchPath.SetPlaceHolder("请选择OBS启动路径 (obs64.exe)")
 	w.obsLaunchPath.Disable()
 
 	// 创建OBS配置路径输入框
 	w.obsConfigPath = widget.NewEntry()
-	w.obsConfigPath.SetText(cfg.OBSConfigPath)
+	w.obsConfigPath.SetText(cfg.PathSettings.OBSConfigPath)
 	w.obsConfigPath.SetPlaceHolder("请选择OBS配置文件路径 (service.json)")
 	w.obsConfigPath.Disable()
 
 	// 创建直播伴侣路径输入框
 	w.liveCompanionPath = widget.NewEntry()
-	w.liveCompanionPath.SetText(cfg.LiveCompanionPath)
+	w.liveCompanionPath.SetText(cfg.PathSettings.LiveCompanionPath)
 	w.liveCompanionPath.SetPlaceHolder("请选择直播伴侣启动路径 (直播伴侣 Launcher.exe)")
 	w.liveCompanionPath.Disable()
 
 	// 创建自动化插件脚本路径输入框
 	w.pluginScriptPath = widget.NewEntry()
-	w.pluginScriptPath.SetText(cfg.PluginScriptPath)
+	w.pluginScriptPath.SetText(cfg.PathSettings.PluginScriptPath)
 	w.pluginScriptPath.SetPlaceHolder("请选择自动化插件脚本路径 (auto.exe)")
 	w.pluginScriptPath.Disable()
 
 	// 创建插件相关配置控件
 	w.pluginCheckInterval = NewNumericalEntry()
-	w.pluginCheckInterval.SetText(lkit.AnyToStr(cfg.PluginCheckInterval))
+	w.pluginCheckInterval.SetText(lkit.AnyToStr(cfg.ScriptSettings.PluginCheckInterval))
 	w.pluginCheckInterval.SetPlaceHolder("插件检查间隔 (秒)")
 
 	w.pluginWaitAfterFound = NewNumericalEntry()
-	w.pluginWaitAfterFound.SetText(lkit.AnyToStr(cfg.PluginWaitAfterFound))
+	w.pluginWaitAfterFound.SetText(lkit.AnyToStr(cfg.ScriptSettings.PluginWaitAfterFound))
 	w.pluginWaitAfterFound.SetPlaceHolder("插件检测到后等待时间 (秒)")
 
 	w.pluginTimeout = NewNumericalEntry()
-	w.pluginTimeout.SetText(lkit.AnyToStr(cfg.PluginTimeout))
+	w.pluginTimeout.SetText(lkit.AnyToStr(cfg.ScriptSettings.PluginTimeout))
 	w.pluginTimeout.SetPlaceHolder("插件超时时间 (秒)")
 
 	// 创建下载按钮
@@ -190,10 +190,10 @@ func (w *SettingsWindow) setupUI() {
 
 	// 创建窗口行为配置控件
 	w.minimizeOnClose = widget.NewCheck("关闭窗口时最小化到托盘", nil)
-	w.minimizeOnClose.SetChecked(cfg.MinimizeOnClose)
+	w.minimizeOnClose.SetChecked(cfg.BaseSettings.MinimizeOnClose)
 
 	w.openLiveWhenStart = widget.NewCheck("启动时打开直播伴侣", nil)
-	w.openLiveWhenStart.SetChecked(cfg.OpenLiveWhenStart)
+	w.openLiveWhenStart.SetChecked(cfg.BaseSettings.OpenLiveWhenStart)
 
 	// 创建标签页内容
 	regexTab := w.createRegexTab()
@@ -256,20 +256,26 @@ func (w *SettingsWindow) saveSettings(checks []string) {
 	updatedLogConfig.Level = w.logLevel.Selected
 
 	// 创建新的设置
-	newSettings := config.Config{
-		NetworkInterfaces:    checks,
-		ServerRegex:          strings.TrimSpace(w.serverRegex.Text),
-		StreamKeyRegex:       strings.TrimSpace(w.streamKeyRegex.Text),
-		OBSLaunchPath:        strings.TrimSpace(w.obsLaunchPath.Text),
-		OBSConfigPath:        strings.TrimSpace(w.obsConfigPath.Text),
-		LiveCompanionPath:    strings.TrimSpace(w.liveCompanionPath.Text),
-		PluginScriptPath:     strings.TrimSpace(w.pluginScriptPath.Text),
-		PluginCheckInterval:  lkit.Str2Int32(w.pluginCheckInterval.Text),
-		PluginWaitAfterFound: lkit.Str2Int32(w.pluginWaitAfterFound.Text),
-		PluginTimeout:        lkit.Str2Int32(w.pluginTimeout.Text),
-		MinimizeOnClose:      w.minimizeOnClose.Checked,
-		OpenLiveWhenStart:    w.openLiveWhenStart.Checked,
-		LogConfig:            &updatedLogConfig,
+	newSettings := &config.Config{
+		BaseSettings: &config.BaseSettings{
+			NetworkInterfaces: checks,
+			ServerRegex:       strings.TrimSpace(w.serverRegex.Text),
+			StreamKeyRegex:    strings.TrimSpace(w.streamKeyRegex.Text),
+			MinimizeOnClose:   w.minimizeOnClose.Checked,
+			OpenLiveWhenStart: w.openLiveWhenStart.Checked,
+		},
+		PathSettings: &config.PathSettings{
+			OBSLaunchPath:     strings.TrimSpace(w.obsLaunchPath.Text),
+			OBSConfigPath:     strings.TrimSpace(w.obsConfigPath.Text),
+			LiveCompanionPath: strings.TrimSpace(w.liveCompanionPath.Text),
+			PluginScriptPath:  strings.TrimSpace(w.pluginScriptPath.Text),
+		},
+		ScriptSettings: &config.ScriptSettings{
+			PluginCheckInterval:  lkit.Str2Int32(w.pluginCheckInterval.Text),
+			PluginWaitAfterFound: lkit.Str2Int32(w.pluginWaitAfterFound.Text),
+			PluginTimeout:        lkit.Str2Int32(w.pluginTimeout.Text),
+		},
+		LogConfig: &updatedLogConfig,
 	}
 
 	// 保存设置

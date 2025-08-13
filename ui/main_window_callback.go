@@ -37,17 +37,7 @@ func (w *MainWindow) resetCaptureBtn() {
 	w.settingBtn.Importance = widget.LowImportance
 	w.settingBtn.Refresh()
 
-	cfg := config.GetConfig()
-	if cfg.OBSLaunchPath != "" {
-		w.obsBtn.SetIcon(OBSIconResource)
-		w.obsBtn.Enable()
-		w.obsBtn.Refresh()
-	} else {
-		w.obsBtn.SetIcon(OBSIconResourceDis)
-		w.obsBtn.Disable()
-		w.obsBtn.Refresh()
-	}
-
+	cfg := config.GetConfig().PathSettings
 	if cfg.OBSConfigPath != "" {
 		w.importOBSBtn.Enable()
 		w.importOBSBtn.Refresh()
@@ -55,13 +45,17 @@ func (w *MainWindow) resetCaptureBtn() {
 		w.importOBSBtn.Disable()
 		w.importOBSBtn.Refresh()
 	}
+
+	w.autoBtn.SetIcon(TikTokIconResource)
+	w.autoBtn.Enable()
+	w.autoBtn.Refresh()
 }
 
 func (w *MainWindow) handleCapture() {
-	if !config.IsCapturing {
+	if !capture.IsCapturing {
 		// 开始抓包
-		config.IsCapturing = true
-		config.StopCapture = make(chan struct{})
+		capture.IsCapturing = true
+		capture.StopCapture = make(chan struct{})
 
 		// 更改按钮样式为停止状态
 		w.captureBtn.SetText("停止抓包")
@@ -72,41 +66,34 @@ func (w *MainWindow) handleCapture() {
 		w.restartBtn.Disable()
 		w.settingBtn.Disable()
 		w.importOBSBtn.Disable()
-		w.obsBtn.Disable()
-		w.obsBtn.SetIcon(OBSIconResourceDis)
-		w.obsBtn.Refresh()
+		w.autoBtn.Disable()
+		w.autoBtn.SetIcon(TikTokIconResourceDis)
+		w.autoBtn.Refresh()
 
 		// 清空数据
 		w.serverAddr.SetText("")
 		w.streamKey.SetText("")
+		w.ipAddr.SetText("")
 
 		w.status.SetText("正在抓包...")
 
-		if config.IsDebug {
-			serverRegexCompile := config.GetConfig().ServerRegex
-			if len(serverRegexCompile) == 0 {
-				serverRegexCompile = config.DefaultConfig.ServerRegex
-			}
-			llog.Debug("服务器地址正则表达式: ", serverRegexCompile)
-
-			keyRegex := config.GetConfig().StreamKeyRegex
-			if len(keyRegex) == 0 {
-				keyRegex = config.DefaultConfig.StreamKeyRegex
-			}
-			llog.Debug("推流码正则表达式: ", keyRegex)
-		}
+		llog.Debug("服务器地址正则表达式: ", config.GetConfig().BaseSettings.ServerRegex)
+		llog.Debug("推流码正则表达式: ", config.GetConfig().BaseSettings.StreamKeyRegex)
 
 		capture.StartCapture(
 			func(server string) {
 				fyne.Do(func() {
 					w.serverAddr.SetText(server)
-					w.status.SetText("已找到推流服务器地址")
 				})
 			},
 			func(key string) {
 				fyne.Do(func() {
 					w.streamKey.SetText(key)
-					w.status.SetText("已找到推流码")
+				})
+			},
+			func(ip string) {
+				fyne.Do(func() {
+					w.ipAddr.SetText(ip)
 				})
 			},
 			func(err error) {
@@ -133,7 +120,7 @@ func (w *MainWindow) handleCapture() {
 
 // restartApp 重启应用
 func (w *MainWindow) restartApp() {
-	if config.IsCapturing {
+	if capture.IsCapturing {
 		capture.StopCapturing()
 	}
 
@@ -193,14 +180,11 @@ func isLiveCompanionRunning() int32 {
 // handleWindowClose 处理窗口关闭事件
 // 根据配置决定是最小化到托盘还是退出程序
 func (w *MainWindow) handleWindowClose() {
-	cfg := config.GetConfig()
-	if cfg.MinimizeOnClose {
-		// 最小化到系统托盘
+	if config.GetConfig().BaseSettings.MinimizeOnClose {
 		w.window.Hide()
-	} else {
-		// 正常退出程序
-		w.window.Close()
+		return
 	}
+	w.window.Close()
 }
 
 // handleImportOBS 处理导入OBS配置
@@ -215,7 +199,7 @@ func (w *MainWindow) handleImportOBS() {
 	}
 
 	// 检查OBS配置路径是否设置
-	obsConfigPath := strings.TrimSpace(config.GetConfig().OBSConfigPath)
+	obsConfigPath := strings.TrimSpace(config.GetConfig().PathSettings.OBSConfigPath)
 	if obsConfigPath == "" {
 		w.NewInfoDialog("提示", "请先在设置中配置OBS配置文件路径")
 		return
@@ -338,7 +322,7 @@ func (w *MainWindow) handleStartLiveCompanion() {
 
 // startLiveCompanion 启动直播伴侣
 func (w *MainWindow) startLiveCompanion(check bool) error {
-	liveCompanionPath := strings.TrimSpace(config.GetConfig().LiveCompanionPath)
+	liveCompanionPath := strings.TrimSpace(config.GetConfig().PathSettings.LiveCompanionPath)
 
 	// 检查路径是否为空
 	if liveCompanionPath == "" {
@@ -394,7 +378,7 @@ func (w *MainWindow) handleStartOBS() {
 
 // startOBSForAuto 为自动流程启动OBS
 func (w *MainWindow) startOBS(check bool) error {
-	obsPath := strings.TrimSpace(config.GetConfig().OBSLaunchPath)
+	obsPath := strings.TrimSpace(config.GetConfig().PathSettings.OBSLaunchPath)
 	if obsPath == "" {
 		return fmt.Errorf("请先在设置中配置OBS启动路径")
 	}
@@ -455,7 +439,7 @@ func (w *MainWindow) handleAutoStart() {
 
 // validateAutoStartConfig 验证一键开播所需的配置
 func (w *MainWindow) validateAutoStartConfig() error {
-	cfg := config.GetConfig()
+	cfg := config.GetConfig().PathSettings
 
 	// 检查直播伴侣路径
 	if strings.TrimSpace(cfg.LiveCompanionPath) == "" {
@@ -496,6 +480,11 @@ func (w *MainWindow) validateAutoStartConfig() error {
 	// if pid := isLiveCompanionRunning(); pid != -1 {
 	// 	return fmt.Errorf("直播伴侣已在运行，请先关闭后再使用一键开播")
 	// }
+
+	// 检查是否正在抓包
+	if capture.IsCapturing {
+		return fmt.Errorf("当前正在抓包，请先停止抓包后再使用一键开播")
+	}
 
 	return nil
 }
@@ -552,6 +541,8 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 		progressError = err
 		return
 	}
+
+	time.Sleep(1 * time.Second)
 
 	// 开始抓包
 	fyne.Do(func() {
@@ -634,8 +625,8 @@ func (w *MainWindow) autoStart(progressDialog *dialog.CustomDialog, progressLabe
 // startCaptureForAuto 为自动流程开始抓包
 func (w *MainWindow) startCaptureForAuto(onGetAll func()) error {
 	// 开始抓包
-	config.IsCapturing = true
-	config.StopCapture = make(chan struct{})
+	capture.IsCapturing = true
+	capture.StopCapture = make(chan struct{})
 
 	// 清空数据
 	fyne.Do(func() {
@@ -656,6 +647,11 @@ func (w *MainWindow) startCaptureForAuto(onGetAll func()) error {
 				w.streamKey.SetText(streamKey)
 			})
 		},
+		func(ip string) {
+			fyne.DoAndWait(func() {
+				w.ipAddr.SetText(ip)
+			})
+		},
 		func(err error) {
 			err = fmt.Errorf("抓包过程中发生错误: %v", err)
 		},
@@ -672,7 +668,7 @@ func (w *MainWindow) simulateClickStartLive() error {
 		return fmt.Errorf("置顶直播伴侣窗口失败: %v", err)
 	}
 
-	autoExePath := strings.TrimSpace(config.GetConfig().PluginScriptPath)
+	autoExePath := strings.TrimSpace(config.GetConfig().PathSettings.PluginScriptPath)
 	args := []string{"--app", "直播伴侣", "--control", "开始直播", "--type", "Text"}
 
 	result, err := lkit.RunAutoTool(autoExePath, args)
@@ -703,7 +699,7 @@ func (w *MainWindow) importOBSConfigForAuto() error {
 		return fmt.Errorf("OBS正在运行，请先关闭OBS后再导入配置")
 	}
 
-	return WriteOBSConfig(strings.TrimSpace(config.GetConfig().OBSConfigPath), serverAddr, streamKey)
+	return WriteOBSConfig(strings.TrimSpace(config.GetConfig().PathSettings.OBSConfigPath), serverAddr, streamKey)
 }
 
 // closeLiveCompanionForAuto 为自动流程关闭直播伴侣
@@ -713,7 +709,7 @@ func (w *MainWindow) closeLiveCompanionForAuto() error {
 		return fmt.Errorf("置顶直播伴侣窗口失败: %v", err)
 	}
 
-	autoExePath := strings.TrimSpace(config.GetConfig().PluginScriptPath)
+	autoExePath := strings.TrimSpace(config.GetConfig().PathSettings.PluginScriptPath)
 	args := []string{"--app", "直播伴侣", "--control", "关闭", "--type", "Button"}
 
 	result, err := lkit.RunAutoTool(autoExePath, args)

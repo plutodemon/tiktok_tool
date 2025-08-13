@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -17,11 +18,19 @@ import (
 )
 
 var (
+	handles     []*pcap.Handle
+	handleMutex sync.Mutex
+
+	IsCapturing bool
+	StopCapture chan struct{}
+
 	allReadyGetServer = false
 	allReadyGetStream = false
 
-	netCfg config.Config
-
+	SrcIPAddr     = ""
+	SrcIPPort     uint16
+	DstIPAddr     = ""
+	DstIPPort     uint16
 	SrcIPAddrPort = ""
 	DstIPAddrPort = ""
 )
@@ -34,31 +43,30 @@ func CheckNpcapInstalled() bool {
 
 // StopCapturing 停止抓包
 func StopCapturing() {
-	if config.IsCapturing == false {
+	if IsCapturing == false {
 		return
 	}
-	config.IsCapturing = false
-	close(config.StopCapture)
+	IsCapturing = false
+	close(StopCapture)
 
 	// 重置状态变量
 	allReadyGetServer = false
 	allReadyGetStream = false
-	netCfg = config.GetConfig()
 
-	config.HandleMutex.Lock()
-	for _, handle := range config.Handles {
+	handleMutex.Lock()
+	for _, handle := range handles {
 		handle.Close()
 	}
-	config.Handles = nil
-	config.HandleMutex.Unlock()
+	handles = nil
+	handleMutex.Unlock()
 }
 
 // StartCapture 开始抓包
-func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onError func(error), onGetAll func()) {
+func StartCapture(onServerFound, onStreamKeyFound, onStreamIpFound func(string), onError func(error), onGetAll func()) {
 	// 重置状态变量
 	allReadyGetServer = false
 	allReadyGetStream = false
-	netCfg = config.GetConfig()
+	baseCfg := config.GetConfig().BaseSettings
 	allDevices, err := pcap.FindAllDevs()
 	if err != nil {
 		onError(err)
@@ -67,7 +75,7 @@ func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onE
 
 	devices := make([]pcap.Interface, 0)
 	for _, device := range allDevices {
-		if len(netCfg.NetworkInterfaces) == 0 {
+		if len(baseCfg.NetworkInterfaces) == 0 {
 			if strings.Contains(device.Description, "Bluetooth") ||
 				strings.Contains(device.Description, "loopback") {
 				continue
@@ -75,7 +83,7 @@ func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onE
 			devices = append(devices, device)
 			continue
 		}
-		if slices.Contains(netCfg.NetworkInterfaces, device.Description) {
+		if slices.Contains(baseCfg.NetworkInterfaces, device.Description) {
 			devices = append(devices, device)
 		}
 	}
@@ -86,29 +94,27 @@ func StartCapture(onServerFound func(string), onStreamKeyFound func(string), onE
 	}
 
 	for _, device := range devices {
-		if config.IsDebug {
-			llog.DebugF("正在监听网络接口: %s", device.Description)
-		}
 		lkit.SafeGo(func() {
-			captureDevice(device.Name, onServerFound, onStreamKeyFound, onGetAll)
+			captureDevice(device.Name, onServerFound, onStreamKeyFound, onStreamIpFound, onGetAll)
 		})
 	}
 }
 
-func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFound func(string), onGetAll func()) {
+func captureDevice(deviceName string, onServerFound, onStreamKeyFound, onStreamIpFound func(string), onGetAll func()) {
+	llog.DebugF("正在监听网络接口: %s", deviceName)
 	handle, err := pcap.OpenLive(deviceName, 65535, true, pcap.BlockForever)
 	if err != nil {
 		return
 	}
 
-	config.HandleMutex.Lock()
-	config.Handles = append(config.Handles, handle)
-	config.HandleMutex.Unlock()
+	handleMutex.Lock()
+	handles = append(handles, handle)
+	handleMutex.Unlock()
 
 	defer func() {
-		config.HandleMutex.Lock()
+		handleMutex.Lock()
 		handle.Close()
-		config.HandleMutex.Unlock()
+		handleMutex.Unlock()
 	}()
 
 	err = handle.SetBPFFilter("tcp")
@@ -116,10 +122,11 @@ func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFou
 		return
 	}
 
+	baseCfg := config.GetConfig().BaseSettings
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	for {
 		select {
-		case <-config.StopCapture:
+		case <-StopCapture:
 			return
 		default:
 			packet, err := packetSource.NextPacket()
@@ -135,32 +142,28 @@ func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFou
 			payload := string(appLayer.Payload())
 
 			if !allReadyGetServer && strings.Contains(strings.ToLower(payload), "rtmp://") {
-				serverRegex := regexp.MustCompile(netCfg.ServerRegex)
+				serverRegex := regexp.MustCompile(baseCfg.ServerRegex)
 				matches := serverRegex.FindStringSubmatch(payload)
 
 				if len(matches) >= 1 {
-					serverUrl := matches[1]
+					serverUrl := matches[0]
 					onServerFound(serverUrl)
 					allReadyGetServer = true
-					if config.IsDebug {
-						llog.DebugF("找到服务器地址: %s", serverUrl)
-					}
+					llog.InfoF("找到服务器地址: %s", serverUrl)
 				}
 			}
 
 			if !allReadyGetStream {
-				streamRegex := regexp.MustCompile(netCfg.StreamKeyRegex)
+				streamRegex := regexp.MustCompile(baseCfg.StreamKeyRegex)
 				matches := streamRegex.FindStringSubmatch(payload)
 
 				if len(matches) >= 1 {
-					streamStr := matches[1]
+					streamStr := matches[0]
 					onStreamKeyFound(streamStr)
 					allReadyGetStream = true
-					if config.IsDebug {
-						llog.DebugF("找到推流码字符串: %s", streamStr)
-					}
+					llog.InfoF("找到推流码字符串: %s", streamStr)
 					lkit.SafeGo(func() {
-						getDstInfo(packet)
+						getDstInfo(packet, onStreamIpFound)
 					})
 				}
 			}
@@ -173,7 +176,7 @@ func captureDevice(deviceName string, onServerFound func(string), onStreamKeyFou
 	}
 }
 
-func getDstInfo(packet gopacket.Packet) {
+func getDstInfo(packet gopacket.Packet, onStreamIpFound func(string)) {
 	ip4Layer := packet.Layer(layers.LayerTypeIPv4)
 	tcpLayer := packet.Layer(layers.LayerTypeTCP)
 	if ip4Layer == nil || tcpLayer == nil {
@@ -185,8 +188,13 @@ func getDstInfo(packet gopacket.Packet) {
 		return
 	}
 
+	SrcIPAddr = ipv4.SrcIP.String()
+	SrcIPPort = uint16(tcp.SrcPort)
+	DstIPAddr = ipv4.DstIP.String()
+	DstIPPort = uint16(tcp.DstPort)
 	SrcIPAddrPort = lkit.GetAddr(ipv4.SrcIP, tcp.SrcPort)
 	DstIPAddrPort = lkit.GetAddr(ipv4.DstIP, tcp.DstPort)
+	onStreamIpFound(DstIPAddrPort)
 
 	llog.Info("本地IP: ", SrcIPAddrPort)
 	llog.Info("推流目标IP: ", DstIPAddrPort)
