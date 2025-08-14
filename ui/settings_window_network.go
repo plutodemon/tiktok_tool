@@ -11,7 +11,7 @@ import (
 func (w *SettingsWindow) createNetworkTab() fyne.CanvasObject {
 	// 创建网卡列表容器
 	networkScroll := container.NewScroll(w.networkList)
-	networkScroll.SetMinSize(fyne.NewSize(500, 220))
+	networkScroll.SetMinSize(fyne.NewSize(500, 250))
 
 	// 添加说明文本
 	networkHelp := widget.NewRichTextFromMarkdown("### 网卡选择说明\n\n" +

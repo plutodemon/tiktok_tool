@@ -89,7 +89,7 @@ func NewMainWindow() {
 	myApp.SetIcon(TikTokIconResource)
 	myApp.Settings().SetTheme(&ChineseTheme{})
 	window := myApp.NewWindow("抖音直播推流配置抓取")
-	window.Resize(fyne.NewSize(600, 280))
+	window.Resize(fyne.NewSize(600, 335))
 	window.SetFixedSize(true)
 	window.SetMaster()
 	window.CenterOnScreen()
@@ -174,7 +174,7 @@ func (w *MainWindow) setupUI() {
 			w.status.SetText("服务器地址为空")
 			return
 		}
-		w.window.Clipboard().SetContent(w.serverAddr.Text)
+		w.app.Clipboard().SetContent(w.serverAddr.Text)
 		w.status.SetText("已复制服务器地址")
 	})
 
@@ -183,7 +183,7 @@ func (w *MainWindow) setupUI() {
 			w.status.SetText("推流码为空")
 			return
 		}
-		w.window.Clipboard().SetContent(w.streamKey.Text)
+		w.app.Clipboard().SetContent(w.streamKey.Text)
 		w.status.SetText("已复制推流码")
 	})
 
@@ -192,7 +192,7 @@ func (w *MainWindow) setupUI() {
 			w.status.SetText("推流IP地址为空")
 			return
 		}
-		w.window.Clipboard().SetContent(w.ipAddr.Text)
+		w.app.Clipboard().SetContent(w.ipAddr.Text)
 		w.status.SetText("已复制推流IP地址")
 	})
 

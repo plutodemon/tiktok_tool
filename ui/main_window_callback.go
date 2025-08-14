@@ -1,11 +1,9 @@
 package ui
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -149,34 +147,6 @@ func (w *MainWindow) restartApp() {
 	})
 }
 
-// isOBSRunning 检查OBS是否正在运行
-func isOBSRunning() int32 {
-	pids, err := lkit.IsProcessRunning("obs64.exe", "obs32.exe")
-	if err != nil {
-		llog.Error("检查OBS进程失败:", err)
-		return -1
-	}
-	if pids[0] > 0 {
-		return pids[0]
-	}
-	if pids[1] > 0 {
-		return pids[1]
-	}
-	return -1
-}
-
-func isLiveCompanionRunning() int32 {
-	pids, err := lkit.IsProcessRunning("直播伴侣.exe")
-	if err != nil {
-		llog.Error("检查直播伴侣进程失败:", err)
-		return -1
-	}
-	if pids[0] > 0 {
-		return pids[0]
-	}
-	return -1
-}
-
 // handleWindowClose 处理窗口关闭事件
 // 根据配置决定是最小化到托盘还是退出程序
 func (w *MainWindow) handleWindowClose() {
@@ -185,233 +155,6 @@ func (w *MainWindow) handleWindowClose() {
 		return
 	}
 	w.window.Close()
-}
-
-// handleImportOBS 处理导入OBS配置
-func (w *MainWindow) handleImportOBS() {
-	// 检查是否有推流信息
-	serverAddr := strings.TrimSpace(w.serverAddr.Text)
-	streamKey := strings.TrimSpace(w.streamKey.Text)
-
-	if serverAddr == "" || streamKey == "" {
-		w.NewInfoDialog("提示", "请先抓取到推流服务器地址和推流码")
-		return
-	}
-
-	// 检查OBS配置路径是否设置
-	obsConfigPath := strings.TrimSpace(config.GetConfig().PathSettings.OBSConfigPath)
-	if obsConfigPath == "" {
-		w.NewInfoDialog("提示", "请先在设置中配置OBS配置文件路径")
-		return
-	}
-
-	// 检查OBS是否正在运行
-	if pid := isOBSRunning(); pid != -1 {
-		closeConfirm := *w.NewConfirmDialog("OBS正在运行",
-			"检测到OBS正在运行，导入配置需要先关闭OBS。\n是否要自动关闭OBS？(再次启动会有提示)\n(建议：手动关闭OBS)",
-			func(confirmed bool) {
-				if !confirmed {
-					return
-				}
-				err := lkit.KillProcess(pid)
-				if err == nil {
-					return
-				}
-				w.NewErrorDialog(fmt.Errorf("关闭OBS失败：%v", err))
-			})
-		closeConfirm.SetDismissText("手动关闭")
-		closeConfirm.SetConfirmText("自动关闭")
-		return
-	}
-
-	// 确认对话框
-	writeConfirm := *w.NewConfirmDialog("确认导入", "将要导入配置到以下OBS配置文件中：\n"+obsConfigPath,
-		func(confirmed bool) {
-			if !confirmed {
-				return
-			}
-
-			// 写入OBS配置
-			err := WriteOBSConfig(obsConfigPath, serverAddr, streamKey)
-			if err != nil {
-				w.NewErrorDialog(fmt.Errorf("导入OBS配置失败：%v", err))
-				return
-			}
-
-			w.status.SetText("OBS配置导入成功")
-			w.NewInfoDialog("成功", "推流配置已成功导入到OBS！")
-		})
-	writeConfirm.SetDismissText("取消")
-	writeConfirm.SetConfirmText("导入")
-}
-
-// WriteOBSConfig 将推流配置写入OBS配置文件(service.json)
-func WriteOBSConfig(configPath, server, key string) error {
-	// 检查文件是否存在
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return fmt.Errorf("配置文件不存在: %s", configPath)
-	}
-
-	// 读取JSON配置文件
-	content, err := os.ReadFile(configPath)
-	if err != nil {
-		return fmt.Errorf("读取配置文件失败: %v", err)
-	}
-
-	// 解析JSON
-	var cfgMap map[string]interface{}
-	err = json.Unmarshal(content, &cfgMap)
-	if err != nil {
-		return fmt.Errorf("解析JSON配置文件失败: %v", err)
-	}
-
-	// 确保settings字段存在
-	if cfgMap["settings"] == nil {
-		cfgMap["settings"] = make(map[string]interface{})
-	}
-
-	// 获取settings对象
-	settings, ok := cfgMap["settings"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("配置文件格式错误: settings字段不是对象")
-	}
-
-	// 更新server和key字段
-	settings["server"] = server
-	settings["key"] = key
-
-	// 将修改后的配置转换回JSON
-	newContent, err := json.MarshalIndent(cfgMap, "", "  ")
-	if err != nil {
-		return fmt.Errorf("序列化JSON配置失败: %v", err)
-	}
-
-	// 写回文件
-	err = os.WriteFile(configPath, newContent, 0644)
-	if err != nil {
-		return fmt.Errorf("写入配置文件失败: %v", err)
-	}
-
-	return nil
-}
-
-// handleStartLiveCompanion 处理启动直播伴侣
-func (w *MainWindow) handleStartLiveCompanion() {
-	quit := false
-	if lkit.IsAdmin == false {
-		confirmDialog := *w.NewConfirmDialog("管理员权限确认",
-			"启动直播伴侣需要管理员权限，系统将弹出UAC提示\n是否继续启动？",
-			func(confirmed bool) {
-				quit = !confirmed
-			})
-		confirmDialog.SetDismissText("取消")
-		confirmDialog.SetConfirmText("继续")
-	}
-
-	if quit {
-		return
-	}
-
-	if err := w.startLiveCompanion(true); err != nil {
-		w.NewErrorDialog(err)
-		return
-	}
-
-	w.status.SetText("直播伴侣启动请求已发送")
-}
-
-// startLiveCompanion 启动直播伴侣
-func (w *MainWindow) startLiveCompanion(check bool) error {
-	liveCompanionPath := strings.TrimSpace(config.GetConfig().PathSettings.LiveCompanionPath)
-
-	// 检查路径是否为空
-	if liveCompanionPath == "" {
-		return fmt.Errorf("请先在设置中配置直播伴侣启动路径")
-	}
-
-	// 检查文件是否存在
-	if _, err := os.Stat(liveCompanionPath); os.IsNotExist(err) {
-		return fmt.Errorf("直播伴侣文件不存在：%s", liveCompanionPath)
-	}
-
-	// 检查是否已经运行
-	// if pid := isLiveCompanionRunning(); check && pid != -1 {
-	// 	success, err := lkit.BringWindowToFront("直播伴侣")
-	// 	if err != nil || !success {
-	// 		return fmt.Errorf("检测到直播伴侣已经正在运行！\n置顶直播伴侣窗口失败: %v", err)
-	// 	}
-	// 	return fmt.Errorf("检测到直播伴侣已经正在运行！\n请勿重复运行直播伴侣(已置顶窗口)")
-	// }
-
-	if lkit.IsAdmin {
-		// 已经是管理员权限，直接启动
-		cmd := exec.Command(liveCompanionPath)
-		err := cmd.Start()
-		if err != nil {
-			return fmt.Errorf("启动直播伴侣失败：%v", err)
-		}
-	} else {
-		// 使用PowerShell以管理员权限启动直播伴侣
-		powershellCmd := fmt.Sprintf("Start-Process -FilePath '%s' -Verb RunAs", liveCompanionPath)
-		cmd := exec.Command("powershell", "-Command", powershellCmd)
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			HideWindow: true,
-		}
-		err := cmd.Start()
-		if err != nil {
-			return fmt.Errorf("启动直播伴侣失败：%v", err)
-		}
-	}
-
-	return nil
-}
-
-// handleStartOBS 处理启动OBS
-func (w *MainWindow) handleStartOBS() {
-	if err := w.startOBS(true); err != nil {
-		w.NewErrorDialog(err)
-		return
-	}
-
-	w.status.SetText("OBS启动请求已发送")
-}
-
-// startOBSForAuto 为自动流程启动OBS
-func (w *MainWindow) startOBS(check bool) error {
-	obsPath := strings.TrimSpace(config.GetConfig().PathSettings.OBSLaunchPath)
-	if obsPath == "" {
-		return fmt.Errorf("请先在设置中配置OBS启动路径")
-	}
-
-	// 检查文件是否存在
-	if _, err := os.Stat(obsPath); os.IsNotExist(err) {
-		return fmt.Errorf("OBS文件不存在：%s", obsPath)
-	}
-
-	// 检查OBS是否正在运行
-	if pid := isOBSRunning(); pid != -1 {
-		success, err := lkit.BringWindowToFront("OBS")
-		if err != nil || !success {
-			return fmt.Errorf("检测到OBS已经正在运行！\n置顶OBS窗口失败: %v", err)
-		}
-		if check {
-			return fmt.Errorf("检测到OBS已经正在运行！\n请勿重复运行OBS(已置顶窗口)")
-		}
-		return nil
-	}
-
-	// 获取OBS安装目录作为工作目录
-	obsDir := filepath.Dir(obsPath)
-
-	// 启动OBS，设置正确的工作目录
-	cmd := exec.Command(obsPath)
-	cmd.Dir = obsDir
-	err := cmd.Start()
-	if err != nil {
-		return fmt.Errorf("启动OBS失败：%v", err)
-	}
-
-	return nil
 }
 
 // handleAutoStart 处理一键开播功能
@@ -510,6 +253,9 @@ func (w *MainWindow) executeAutoStartFlow() {
 		capture.StopCapturing()
 		closeButton.Enable()
 		closeButton.Refresh()
+		w.autoBtn.Disable()
+		w.autoBtn.SetIcon(TikTokIconResourceDis)
+		w.autoBtn.Refresh()
 		w.status.SetText("一键开播流程已完成！")
 	}
 
@@ -659,88 +405,4 @@ func (w *MainWindow) startCaptureForAuto(onGetAll func()) error {
 	)
 
 	return err
-}
-
-// simulateClickStartLive 使用auto.exe模拟点击开始直播按钮
-func (w *MainWindow) simulateClickStartLive() error {
-	success, err := lkit.BringWindowToFront("直播伴侣")
-	if err != nil || !success {
-		return fmt.Errorf("置顶直播伴侣窗口失败: %v", err)
-	}
-
-	autoExePath := strings.TrimSpace(config.GetConfig().PathSettings.PluginScriptPath)
-	args := []string{"--app", "直播伴侣", "--control", "开始直播", "--type", "Text"}
-
-	result, err := lkit.RunAutoTool(autoExePath, args)
-	if err != nil {
-		return fmt.Errorf("获取开始直播按钮位置失败：%v", err)
-	}
-	if !result.Success {
-		return fmt.Errorf("获取开始直播按钮位置失败：%s", result.Error)
-	}
-	err = lkit.SimulateLeftClick(result.Center.X, result.Center.Y)
-	if err != nil {
-		return fmt.Errorf("模拟点击开始直播按钮失败：%v", err)
-	}
-
-	return nil
-}
-
-// importOBSConfigForAuto 为自动流程导入OBS配置
-func (w *MainWindow) importOBSConfigForAuto() error {
-	serverAddr := strings.TrimSpace(w.serverAddr.Text)
-	streamKey := strings.TrimSpace(w.streamKey.Text)
-
-	if serverAddr == "" || streamKey == "" {
-		return fmt.Errorf("推流信息不完整")
-	}
-
-	if pid := isOBSRunning(); pid != -1 {
-		return fmt.Errorf("OBS正在运行，请先关闭OBS后再导入配置")
-	}
-
-	return WriteOBSConfig(strings.TrimSpace(config.GetConfig().PathSettings.OBSConfigPath), serverAddr, streamKey)
-}
-
-// closeLiveCompanionForAuto 为自动流程关闭直播伴侣
-func (w *MainWindow) closeLiveCompanionForAuto() error {
-	success, err := lkit.BringWindowToFront("直播伴侣")
-	if err != nil || !success {
-		return fmt.Errorf("置顶直播伴侣窗口失败: %v", err)
-	}
-
-	autoExePath := strings.TrimSpace(config.GetConfig().PathSettings.PluginScriptPath)
-	args := []string{"--app", "直播伴侣", "--control", "关闭", "--type", "Button"}
-
-	result, err := lkit.RunAutoTool(autoExePath, args)
-	if err != nil {
-		return fmt.Errorf("获取关闭按钮位置失败：%v", err)
-	}
-
-	if !result.Success {
-		return fmt.Errorf("获取关闭按钮位置失败：%s", result.Error)
-	}
-	err = lkit.SimulateLeftClick(result.Center.X, result.Center.Y)
-	if err != nil {
-		return fmt.Errorf("模拟点击关闭按钮失败：%v", err)
-	}
-
-	time.Sleep(1 * time.Second)
-
-	args = []string{"--app", "直播伴侣", "--control", "确定", "--type", "Button"}
-
-	result, err = lkit.RunAutoTool(autoExePath, args)
-	if err != nil {
-		return fmt.Errorf("获取关闭按钮位置失败：%v", err)
-	}
-
-	if !result.Success {
-		return fmt.Errorf("获取关闭按钮位置失败：%s", result.Error)
-	}
-	err = lkit.SimulateLeftClick(result.Center.X, result.Center.Y)
-	if err != nil {
-		return fmt.Errorf("模拟点击关闭按钮失败：%v", err)
-	}
-
-	return nil
 }

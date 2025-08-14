@@ -2,6 +2,7 @@ package main
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 
 	"tiktok_tool/config"
@@ -13,6 +14,14 @@ import (
 func main() {
 	lkit.InitCrashLog()
 	defer lkit.CrashLog()
+
+	if err := lkit.EnsureSingleInstance(); err != nil {
+		if errors.Is(err, config.AlreadyTop) {
+			return
+		}
+		panic(fmt.Sprintf("程序已在运行: %v", err))
+	}
+	defer lkit.CleanupLock()
 
 	if err := config.LoadConfig(); err != nil {
 		panic(fmt.Sprintf("初始化配置失败: %v", err))

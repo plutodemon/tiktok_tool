@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -12,6 +13,10 @@ import (
 const (
 	CfgFilePath = "config"               // 配置文件目录
 	CfgFileName = "tiktok_tool_cfg.toml" // 配置文件名
+)
+
+var (
+	AlreadyTop = errors.New("AlreadyTop")
 )
 
 var (
@@ -43,6 +48,9 @@ type BaseSettings struct {
 	StreamKeyRegex    string   `toml:"stream_key_regex"`     // 推流码正则表达式
 	MinimizeOnClose   bool     `toml:"minimize_on_close"`    // 关闭窗口时最小化到系统托盘而不退出
 	OpenLiveWhenStart bool     `toml:"open_live_when_start"` // 启动时自动打开直播伴侣
+	OBSWsIp           string   `toml:"obs_ws_ip"`            // OBS WebSocket IP地址
+	OBSWsPort         int32    `toml:"obs_ws_port"`          // OBS WebSocket端口
+	OBSWsPassword     string   `toml:"obs_ws_password"`      // OBS WebSocket密码
 }
 
 type PathSettings struct {
@@ -66,6 +74,8 @@ var DefaultConfig = Config{
 		StreamKeyRegex:    `(stream-[^\s]*?expire=\d{10}&sign=[^\s]+[^\x00\r\n ]*)`,
 		MinimizeOnClose:   false,
 		OpenLiveWhenStart: true,
+		OBSWsIp:           "127.0.0.1",
+		OBSWsPort:         4455,
 	},
 	PathSettings: &PathSettings{},
 	ScriptSettings: &ScriptSettings{

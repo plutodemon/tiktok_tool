@@ -77,12 +77,15 @@ type SettingsWindow struct {
 	// 窗口行为配置
 	minimizeOnClose   *widget.Check
 	openLiveWhenStart *widget.Check
+	obsWsIp           *widget.Entry
+	obsWsPort         *widget.Entry
+	obsWsPassword     *widget.Entry
 }
 
 func ShowSettingsWindow(parent fyne.App, closeCallback func(), saveCallback func(string)) {
 	// 创建设置窗口
 	settingsWindow := parent.NewWindow("设置")
-	settingsWindow.Resize(fyne.NewSize(605, 350))
+	settingsWindow.Resize(fyne.NewSize(605, 430))
 	settingsWindow.SetFixedSize(true)
 	settingsWindow.CenterOnScreen()
 
@@ -195,6 +198,19 @@ func (w *SettingsWindow) setupUI() {
 	w.openLiveWhenStart = widget.NewCheck("启动时打开直播伴侣", nil)
 	w.openLiveWhenStart.SetChecked(cfg.BaseSettings.OpenLiveWhenStart)
 
+	// 创建OBS WebSocket配置控件
+	w.obsWsIp = widget.NewEntry()
+	w.obsWsIp.SetText(cfg.BaseSettings.OBSWsIp)
+	w.obsWsIp.SetPlaceHolder("OBS WebSocket IP (默认: 127.0.0.1)")
+
+	w.obsWsPort = widget.NewEntry()
+	w.obsWsPort.SetText(lkit.AnyToStr(cfg.BaseSettings.OBSWsPort))
+	w.obsWsPort.SetPlaceHolder("OBS WebSocket 端口 (默认: 4455)")
+
+	w.obsWsPassword = widget.NewEntry()
+	w.obsWsPassword.SetText(cfg.BaseSettings.OBSWsPassword)
+	w.obsWsPassword.SetPlaceHolder("OBS WebSocket 密码 ")
+
 	// 创建标签页内容
 	regexTab := w.createRegexTab()
 	networkTab := w.createNetworkTab()
@@ -263,6 +279,9 @@ func (w *SettingsWindow) saveSettings(checks []string) {
 			StreamKeyRegex:    strings.TrimSpace(w.streamKeyRegex.Text),
 			MinimizeOnClose:   w.minimizeOnClose.Checked,
 			OpenLiveWhenStart: w.openLiveWhenStart.Checked,
+			OBSWsIp:           strings.TrimSpace(w.obsWsIp.Text),
+			OBSWsPort:         lkit.Str2Int32(w.obsWsPort.Text),
+			OBSWsPassword:     strings.TrimSpace(w.obsWsPassword.Text),
 		},
 		PathSettings: &config.PathSettings{
 			OBSLaunchPath:     strings.TrimSpace(w.obsLaunchPath.Text),

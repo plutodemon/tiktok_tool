@@ -79,8 +79,8 @@ func (w *SettingsWindow) createScriptTab() fyne.CanvasObject {
 	// 创建表单
 	scriptForm := widget.NewForm(
 		widget.NewFormItem("自动化插件路径", pluginScriptPathContainer),
-		widget.NewFormItem("插件设置", pluginTime),
 		widget.NewFormItem("插件管理", pluginManageContainer),
+		widget.NewFormItem("插件设置", pluginTime),
 	)
 
 	// 添加说明文本
@@ -99,12 +99,24 @@ func (w *SettingsWindow) createScriptTab() fyne.CanvasObject {
 	)
 }
 
+func (w *SettingsWindow) getPluginDir() (string, error) {
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(currentDir, "plugin"), nil
+}
+
 // detectPlugin 检测插件目录下的文件
 func (w *SettingsWindow) detectPlugin() {
-	pluginDir := "plugin"
+	pluginDir, err := w.getPluginDir()
+	if err != nil {
+		w.NewErrorDialog(fmt.Errorf("获取plugin目录失败: %v", err))
+		return
+	}
 
 	// 检查目录是否存在
-	if _, err := os.Stat(pluginDir); os.IsNotExist(err) {
+	if _, err = os.Stat(pluginDir); os.IsNotExist(err) {
 		w.NewInfoDialog("检测结果", "plugin目录不存在")
 		return
 	}
@@ -143,7 +155,11 @@ func (w *SettingsWindow) detectPlugin() {
 
 // clearPlugin 清空插件目录
 func (w *SettingsWindow) clearPlugin() {
-	pluginDir := "plugin"
+	pluginDir, err := w.getPluginDir()
+	if err != nil {
+		w.NewErrorDialog(fmt.Errorf("获取plugin目录失败: %v", err))
+		return
+	}
 
 	w.NewConfirmDialog(
 		"确认清空",
@@ -189,7 +205,15 @@ func (w *SettingsWindow) downloadAutoExe() {
 	// 在后台执行下载
 	lkit.SafeGo(func() {
 		// 确保plugin目录存在
-		pluginDir := "plugin"
+		pluginDir, err := w.getPluginDir()
+		if err != nil {
+			fyne.Do(func() {
+				progressDialog.Hide()
+				w.NewErrorDialog(fmt.Errorf("获取plugin目录失败: %v", err))
+			})
+			return
+		}
+
 		if err := os.MkdirAll(pluginDir, 0755); err != nil {
 			fyne.Do(func() {
 				progressDialog.Hide()
