@@ -64,11 +64,17 @@ func (w *SettingsWindow) createPathTab(alreadyCheck *[]string) fyne.CanvasObject
 	liveCompanionPathContainer := container.NewBorder(nil, nil, nil,
 		container.NewHBox(browseLiveCompanionBtn, autoDetectLiveCompanionBtn, clearLiveCompanionBtn), w.liveCompanionPath)
 
+	right := container.NewHSplit(w.obsWsPort, w.obsWsPassword)
+	right.SetOffset(0.42)
+	inputCon := container.NewHSplit(w.obsWsIp, right)
+	inputCon.SetOffset(0.32)
+
 	// 创建表单
 	otherForm := widget.NewForm(
+		widget.NewFormItem("直播伴侣启动路径", liveCompanionPathContainer),
 		widget.NewFormItem("OBS启动路径", obsLaunchPathContainer),
 		widget.NewFormItem("OBS配置文件路径", obsPathContainer),
-		widget.NewFormItem("直播伴侣启动路径", liveCompanionPathContainer),
+		widget.NewFormItem("OBS WebSocket 配置", inputCon),
 	)
 
 	// 创建恢复默认配置按钮
@@ -78,9 +84,10 @@ func (w *SettingsWindow) createPathTab(alreadyCheck *[]string) fyne.CanvasObject
 
 	// 添加说明文本
 	otherHelp := widget.NewRichTextFromMarkdown("### 配置说明\n\n" +
+		"* **直播伴侣启动路径**：抖音直播伴侣的可执行文件路径，用于快速启动直播伴侣\n" +
 		"* **OBS启动路径**：OBS Studio的可执行文件路径，用于快速启动OBS\n" +
 		"* **OBS配置文件路径**：OBS Studio的配置文件路径，用于导入OBS推流设置\n" +
-		"* **直播伴侣启动路径**：抖音直播伴侣的可执行文件路径，用于快速启动直播伴侣\n")
+		"* **OBS WebSocket 配置**：用于连接OBS的WebSocket设置，包括IP地址、端口和密码\n")
 
 	// 创建容器
 	return container.NewVBox(
@@ -95,7 +102,7 @@ func (w *SettingsWindow) createPathTab(alreadyCheck *[]string) fyne.CanvasObject
 
 // resetToDefaults 重置为默认设置
 func (w *SettingsWindow) resetToDefaults() {
-	w.NewConfirmDialog("确认", "确定要恢复默认配置吗？", func(ok bool) {
+	w.NewConfirmDialog("确认", "确定要恢复全部默认配置吗？", func(ok bool) {
 		if !ok {
 			return
 		}

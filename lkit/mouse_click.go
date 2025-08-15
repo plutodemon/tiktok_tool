@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 	"unsafe"
+
+	"tiktok_tool/llog"
 )
 
 const (
@@ -106,6 +108,8 @@ func SimulateMouseClick(x, y int, button string) error {
 	if ret == 0 {
 		return fmt.Errorf("发送鼠标释放事件失败: %v", err)
 	}
+
+	llog.Debug("模拟鼠标%s点击成功: x=%d, y=%d", button, x, y)
 
 	return nil
 }

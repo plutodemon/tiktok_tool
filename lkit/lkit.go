@@ -135,6 +135,8 @@ func KillProcess(pid int32) error {
 		return fmt.Errorf("无法终止进程: %w", err)
 	}
 
+	llog.Info("进程已终止", pid)
+
 	return nil
 }
 
@@ -177,6 +179,7 @@ type AutoResult struct {
 // args: 命令行参数
 // 返回值: 解析后的AutoResult结构体和可能的错误
 func RunAutoTool(exePath string, args []string) (*AutoResult, error) {
+	llog.Debug("运行自动化工具:", args)
 	cfg := config.GetConfig().ScriptSettings
 	args = append(args,
 		"--check-interval", AnyToStr(cfg.PluginCheckInterval),

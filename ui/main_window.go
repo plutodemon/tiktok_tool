@@ -120,16 +120,19 @@ func NewMainWindow() {
 }
 
 func (w *MainWindow) startTask() {
-	if config.GetConfig().BaseSettings.OpenLiveWhenStart == false {
+	if config.GetConfig().BaseSettings.OpenLiveWhenStart == false ||
+		config.GetConfig().PathSettings.LiveCompanionPath == "" ||
+		config.GetConfig().PathSettings.OBSLaunchPath == "" {
 		return
 	}
-	err := w.startLiveCompanion(false)
-	if err == nil {
+	err1 := w.startLiveCompanion(false)
+	err2 := w.startOBS(false)
+	if err1 == nil && err2 == nil {
 		return
 	}
-	llog.WarnF("程序启动时, 启动直播伴侣失败: %v", err)
+	llog.WarnF("程序启动时, 启动直播伴侣失败: %v, OBS失败: %v", err1, err2)
 	fyne.Do(func() {
-		w.status.SetText("程序启动时, 启动直播伴侣失败")
+		w.status.SetText("程序启动时, 自启动程序失败")
 	})
 }
 
@@ -144,14 +147,26 @@ func (w *MainWindow) addSystemTray() {
 		w.window.Show()
 	})
 	menuItem1.Icon = TikTokIconResource
+
 	menuItem2 := fyne.NewMenuItem("启动直播伴侣", w.handleStartLiveCompanion)
-	menuItem2.Disabled = !lkit.IsAdmin
+	if config.GetConfig().PathSettings.LiveCompanionPath == "" || !lkit.IsAdmin {
+		menuItem2.Disabled = true
+	}
 	menuItem2.Icon = LiveIconResource
+
+	menuItem3 := fyne.NewMenuItem("启动OBS", func() {
+		_ = w.startOBS(false)
+	})
+	if config.GetConfig().PathSettings.OBSLaunchPath == "" {
+		menuItem3.Disabled = true
+	}
+	menuItem3.Icon = OBSIconResource
 
 	m := fyne.NewMenu("tiktok_tool",
 		menuItem1,
 		fyne.NewMenuItemSeparator(),
 		menuItem2,
+		menuItem3,
 	)
 	desk.SetSystemTrayMenu(m)
 }
@@ -298,11 +313,17 @@ func (w *MainWindow) setupUI() {
 func (w *MainWindow) settingWindow() {
 	w.window.Hide()
 	ShowSettingsWindow(w.app, func() { w.window.Show() }, func(text string) {
+		if lkit.IsAdmin {
+			text += "\n当前为管理员权限, 请手动重启应用"
+		}
 		dialog := w.NewCustomDialog("保存成功", "重启",
 			container.NewCenter(widget.NewLabel(text)),
 		)
 		closeButton := widget.NewButton("关闭程序", w.app.Quit)
 		restartButton := widget.NewButton("重启程序", w.restartApp)
+		if lkit.IsAdmin {
+			restartButton.Disable()
+		}
 		restartButton.Importance = widget.HighImportance
 		dialog.SetButtons([]fyne.CanvasObject{closeButton, restartButton})
 	})

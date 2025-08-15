@@ -14,11 +14,13 @@ import (
 )
 
 func FindFileInAllDrives(fileName string) string {
+	llog.Info("开始在所有盘符中搜索文件：", fileName)
 	// 获取所有可用的盘符
 	drives := getAllDrives()
 	if len(drives) == 0 {
 		return ""
 	}
+	llog.Debug("可用盘符：", drives)
 
 	// 创建上下文用于取消搜索
 	ctx, cancel := context.WithCancel(context.Background())

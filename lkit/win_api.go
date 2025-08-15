@@ -7,6 +7,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"tiktok_tool/llog"
 )
 
 var IsAdmin bool
@@ -69,6 +71,8 @@ func IsRunAsAdmin() bool {
 		return false
 	}
 
+	llog.Info("当前程序以管理员身份运行: %v", elevation != 0)
+
 	return elevation != 0
 }
 
@@ -122,6 +126,8 @@ func BringWindowToFront(windowTitle string) (bool, error) {
 	if ret == 0 {
 		return false, fmt.Errorf("设置窗口到前台失败: %v (窗口: %s)", err, foundTitle)
 	}
+
+	llog.Debug("窗口 '%s' 已经被置顶", foundTitle)
 
 	return true, nil
 }

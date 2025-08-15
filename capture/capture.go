@@ -46,6 +46,7 @@ func StopCapturing() {
 	if IsCapturing == false {
 		return
 	}
+	llog.Debug("停止抓包")
 	IsCapturing = false
 	close(StopCapture)
 
@@ -64,6 +65,7 @@ func StopCapturing() {
 // StartCapture 开始抓包
 func StartCapture(onServerFound, onStreamKeyFound, onStreamIpFound func(string), onError func(error), onGetAll func()) {
 	// 重置状态变量
+	llog.Debug("开始抓包")
 	allReadyGetServer = false
 	allReadyGetStream = false
 	baseCfg := config.GetConfig().BaseSettings
@@ -93,6 +95,8 @@ func StartCapture(onServerFound, onStreamKeyFound, onStreamIpFound func(string),
 		return
 	}
 
+	llog.Info("正在监听网络接口:", devices)
+
 	for _, device := range devices {
 		lkit.SafeGo(func() {
 			captureDevice(device.Name, onServerFound, onStreamKeyFound, onStreamIpFound, onGetAll)
@@ -101,7 +105,6 @@ func StartCapture(onServerFound, onStreamKeyFound, onStreamIpFound func(string),
 }
 
 func captureDevice(deviceName string, onServerFound, onStreamKeyFound, onStreamIpFound func(string), onGetAll func()) {
-	llog.DebugF("正在监听网络接口: %s", deviceName)
 	handle, err := pcap.OpenLive(deviceName, 65535, true, pcap.BlockForever)
 	if err != nil {
 		return
@@ -169,6 +172,7 @@ func captureDevice(deviceName string, onServerFound, onStreamKeyFound, onStreamI
 			}
 
 			if allReadyGetServer && allReadyGetStream {
+				llog.Debug("已找到服务器地址和推流码字符串, 停止抓包")
 				onGetAll()
 				StopCapturing()
 			}

@@ -78,6 +78,7 @@ func (w *MainWindow) startOBS(check bool) error {
 		return fmt.Errorf("启动OBS失败：%v", err)
 	}
 
+	llog.Debug("OBS启动")
 	return nil
 }
 
@@ -100,16 +101,17 @@ func (w *MainWindow) handleImportOBS() {
 	}
 
 	// 检查OBS是否正在运行
-	pid := isOBSRunning()
-	for pid != -1 {
-		// todo
-		// if config.GetConfig().BaseSettings.OBSWsIp != "" {
-		// 	err := w.writeOBSCfgByWebSocket()
-		// 	if err != nil {
-		// 		w.NewErrorDialog(fmt.Errorf("通过WebSocket导入OBS配置失败：%v", err))
-		// 		return
-		// 	}
-		// }
+	if pid := isOBSRunning(); pid != -1 {
+		if config.GetConfig().BaseSettings.OBSWsIp != "" {
+			err := w.writeOBSCfgByWebSocket()
+			if err != nil {
+				w.NewErrorDialog(fmt.Errorf("通过WebSocket导入OBS配置失败：%v", err))
+				return
+			}
+			w.status.SetText("OBS配置导入成功")
+			w.NewInfoDialog("成功", "推流配置已成功导入到OBS！")
+			return
+		}
 		closeConfirm := *w.NewConfirmDialog("OBS正在运行",
 			"检测到OBS正在运行，导入配置需要先关闭OBS。\n是否要自动关闭OBS？(再次启动会有提示)\n(建议：手动关闭OBS)",
 			func(confirmed bool) {
@@ -169,6 +171,8 @@ func (w *MainWindow) writeOBSCfgByWebSocket() error {
 		return fmt.Errorf("设置OBS推流服务失败: %v", err)
 	}
 
+	llog.Debug("OBS推流配置已通过WebSocket更新")
+
 	return nil
 }
 
@@ -219,6 +223,8 @@ func WriteOBSConfig(configPath, server, key string) error {
 		return fmt.Errorf("写入配置文件失败: %v", err)
 	}
 
+	llog.Debug("OBS推流配置已写入配置文件:", configPath)
+
 	return nil
 }
 
@@ -232,6 +238,13 @@ func (w *MainWindow) importOBSConfigForAuto() error {
 	}
 
 	if pid := isOBSRunning(); pid != -1 {
+		if config.GetConfig().BaseSettings.OBSWsIp != "" {
+			err := w.writeOBSCfgByWebSocket()
+			if err != nil {
+				return fmt.Errorf("通过WebSocket导入OBS配置失败：%v", err)
+			}
+			return nil
+		}
 		return fmt.Errorf("OBS正在运行，请先关闭OBS后再导入配置")
 	}
 

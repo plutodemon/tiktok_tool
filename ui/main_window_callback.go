@@ -118,8 +118,14 @@ func (w *MainWindow) handleCapture() {
 
 // restartApp 重启应用
 func (w *MainWindow) restartApp() {
+	llog.Info("重启应用")
 	if capture.IsCapturing {
 		capture.StopCapturing()
+	}
+
+	if lkit.IsAdmin {
+		w.NewErrorDialog(fmt.Errorf("当前为管理员权限, 请手动重启应用"))
+		return
 	}
 
 	exe, err := os.Executable()
@@ -217,7 +223,7 @@ func (w *MainWindow) validateAutoStartConfig() error {
 	}
 
 	// 检查是否已有程序在运行
-	if pid := isOBSRunning(); pid != -1 {
+	if pid := isOBSRunning(); pid != -1 && config.GetConfig().BaseSettings.OBSWsIp == "" {
 		return fmt.Errorf("OBS已在运行，请先关闭后再使用一键开播")
 	}
 	// if pid := isLiveCompanionRunning(); pid != -1 {
@@ -234,6 +240,7 @@ func (w *MainWindow) validateAutoStartConfig() error {
 
 // executeAutoStartFlow 执行一键开播流程
 func (w *MainWindow) executeAutoStartFlow() {
+	llog.Debug("开始执行一键开播流程")
 	// 创建进度对话框
 	progressLabel := widget.NewLabel("正在执行一键开播流程...")
 	progressBar := widget.NewProgressBar()

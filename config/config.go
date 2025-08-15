@@ -74,8 +74,6 @@ var DefaultConfig = Config{
 		StreamKeyRegex:    `(stream-[^\s]*?expire=\d{10}&sign=[^\s]+[^\x00\r\n ]*)`,
 		MinimizeOnClose:   false,
 		OpenLiveWhenStart: true,
-		OBSWsIp:           "127.0.0.1",
-		OBSWsPort:         4455,
 	},
 	PathSettings: &PathSettings{},
 	ScriptSettings: &ScriptSettings{

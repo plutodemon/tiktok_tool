@@ -195,21 +195,23 @@ func (w *SettingsWindow) setupUI() {
 	w.minimizeOnClose = widget.NewCheck("关闭窗口时最小化到托盘", nil)
 	w.minimizeOnClose.SetChecked(cfg.BaseSettings.MinimizeOnClose)
 
-	w.openLiveWhenStart = widget.NewCheck("启动时打开直播伴侣", nil)
+	w.openLiveWhenStart = widget.NewCheck("启动时打开直播伴侣以及OBS", nil)
 	w.openLiveWhenStart.SetChecked(cfg.BaseSettings.OpenLiveWhenStart)
 
 	// 创建OBS WebSocket配置控件
 	w.obsWsIp = widget.NewEntry()
 	w.obsWsIp.SetText(cfg.BaseSettings.OBSWsIp)
-	w.obsWsIp.SetPlaceHolder("OBS WebSocket IP (默认: 127.0.0.1)")
+	w.obsWsIp.SetPlaceHolder("IP(本机:127.0.0.1)")
 
 	w.obsWsPort = widget.NewEntry()
-	w.obsWsPort.SetText(lkit.AnyToStr(cfg.BaseSettings.OBSWsPort))
-	w.obsWsPort.SetPlaceHolder("OBS WebSocket 端口 (默认: 4455)")
+	if cfg.BaseSettings.OBSWsPort != 0 {
+		w.obsWsPort.SetText(lkit.AnyToStr(cfg.BaseSettings.OBSWsPort))
+	}
+	w.obsWsPort.SetPlaceHolder("端口(默认:4455)")
 
 	w.obsWsPassword = widget.NewEntry()
 	w.obsWsPassword.SetText(cfg.BaseSettings.OBSWsPassword)
-	w.obsWsPassword.SetPlaceHolder("OBS WebSocket 密码 ")
+	w.obsWsPassword.SetPlaceHolder("密码")
 
 	// 创建标签页内容
 	regexTab := w.createRegexTab()

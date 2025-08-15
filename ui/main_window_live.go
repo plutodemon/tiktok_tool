@@ -93,6 +93,7 @@ func (w *MainWindow) startLiveCompanion(check bool) error {
 		}
 	}
 
+	llog.Debug("直播伴侣启动命令已发送")
 	return nil
 }
 
@@ -144,7 +145,7 @@ func (w *MainWindow) closeLiveCompanionForAuto() error {
 		return fmt.Errorf("模拟点击关闭按钮失败：%v", err)
 	}
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(50 * time.Millisecond)
 
 	args = []string{"--app", "直播伴侣", "--control", "确定", "--type", "Button"}
 
